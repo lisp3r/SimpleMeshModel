@@ -1,0 +1,4 @@
+name: node6
+network: network1
+exit_node: False
+broadcast_port: 37020 # must be the same for all the nodes

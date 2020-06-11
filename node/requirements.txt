@@ -1,2 +1,4 @@
 PyYAML
 netifaces
+networkx
+matplotlib

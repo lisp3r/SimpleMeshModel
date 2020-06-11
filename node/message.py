@@ -1,5 +1,6 @@
 import pickle
 import json
+import copy
 
 # Узлы сети с заданным интервалом транслируют HELLO-сообщение, в которых содержится:
 # * собственный адрес узла,
@@ -34,7 +35,9 @@ class HelloMessage(Message):
         self._neighbors = neighbor_table
 
     def make(self):
-        self.neighbors = [x['addr'] for x in self._neighbors]
+        # tmp = copy.copy(self._neighbors)
+        # self.neighbors = [x.pop('neighbors') for x in tmp]
+        self.neighbors = [{'name': x['name'], 'addr': x['addr']} for x in self._neighbors]
         return pickle.dumps(self)
 
 # class TsMessage(Message):

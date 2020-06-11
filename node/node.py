@@ -7,6 +7,8 @@ import threading
 import netifaces
 import re
 import message
+import networkx as nx
+import matplotlib.pyplot as plt
 
 
 def create_logger(logger_name, threads=True):
@@ -156,6 +158,18 @@ class Node:
             self.__update_neighbor_graph__).run(True)
         [x.join() for x in [*b_threads, *l_threads]]
 
+    def visualize_neighbors(self):
+        G = nx.Graph()
+        G.add_node(self.name)
+        for neighbor in self.neighbor_graph:
+            G.add_edge(self.name, neighbor['name'])
+            for neighbor_2 in neighbor['neighbors']:
+                G.add_edge(neighbor['name'], neighbor_2['name'])
+        plt.subplot()
+        # plt.subplots_adjust(top=0.1, bottom=0.0, right=0.1, left=0.0)
+        nx.draw(G, with_labels=True, font_weight='bold')
+        plt.savefig(f'artefacts/{self.name}.png')
+
 if len(sys.argv) > 2:
     print('Usage: python node.py [config]')
     exit(1)
@@ -166,7 +180,7 @@ else:
     node = Node()
 
 node.update_neighbor_table(3,3)
-# node.update_neighbor_table(3,3)
+node.visualize_neighbors()
 
 node.logger.info(f'Neighbor graph: {node.neighbor_graph}\n')
 

@@ -14,6 +14,7 @@ services:
     - network2
     volumes:
     - ./conf-node1.yml:/node/config.yml
+    - ./artefacts/:/node/artefacts/
   node2:
     build: .
     command: python ./node.py
@@ -22,6 +23,7 @@ services:
     - network1
     volumes:
     - ./conf-node2.yml:/node/config.yml
+    - ./artefacts/:/node/artefacts/
   node3:
     build: .
     command: python ./node.py
@@ -30,6 +32,7 @@ services:
     - network1
     volumes:
     - ./conf-node3.yml:/node/config.yml
+    - ./artefacts/:/node/artefacts/
   node4:
     build: .
     command: python ./node.py
@@ -39,6 +42,7 @@ services:
     - network1
     volumes:
     - ./conf-node4.yml:/node/config.yml
+    - ./artefacts/:/node/artefacts/
   node5:
     build: .
     command: python ./node.py
@@ -47,6 +51,7 @@ services:
     - network2
     volumes:
     - ./conf-node5.yml:/node/config.yml
+    - ./artefacts/:/node/artefacts/
   node6:
     build: .
     command: python ./node.py
@@ -55,4 +60,5 @@ services:
     - network2
     volumes:
     - ./conf-node6.yml:/node/config.yml
+    - ./artefacts/:/node/artefacts/
 version: '3'

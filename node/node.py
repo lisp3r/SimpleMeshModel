@@ -7,9 +7,20 @@ import threading
 import netifaces
 import re
 
+
+def create_logger(logger_name, formatter=None):
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    if not formatter:
+        formatter = logging.Formatter(f'%(asctime)s - [%(threadName)s] - %(levelname)s - %(message)s', '%H:%M:%S')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    return logger
+
 class Listerner:
     def __init__(self, interfaces, listerning_port, listerning_time=None, logger=None, handler=None):
-         self.logger = logger if logger else self.__create_logger__()
+         self.logger = logger if logger else create_logger('listener-logger')
          self.PORT = listerning_port
          self.LISTERNING_TIME = listerning_time
          self.interfaces = interfaces if interfaces else ['']
@@ -24,15 +35,6 @@ class Listerner:
         # sock.bind((netifaces.ifaddresses(iface)[netifaces.AF_INET][0]['addr'], self.PORT))
         sock.bind(('', self.PORT))
         return sock
-
-    def __create_logger__(self):
-        logger = logging.getLogger(f'broadcast-logger')
-        logger.setLevel(logging.DEBUG)
-        ch = logging.StreamHandler()
-        formatter = logging.Formatter(f'%(asctime)s - [%(threadName)s] - %(levelname)s - %(message)s', '%H:%M:%S')
-        ch.setFormatter(formatter)
-        logger.addHandler(ch)
-        return logger
 
     def run(self, return_threads=False):
         def listen(sock):
@@ -50,10 +52,8 @@ class Listerner:
                     return
         threads = [threading.Thread(target=listen, name=f'listen_{iface}', args=(sc,)) for iface, sc in self.sockets.items()]
         [t.start() for t in threads]
-        # for iface, sc in self.sockets.items():
-        #     self.logger.debug(f'Listerning on {iface}...')
-        #     thread = threading.Thread(target=listen, name=f'listen_{iface}', args=(sc,))
-        #     thread.start()
+        if return_threads:
+            return threads
 
 class Broadcaster:
     def __init__(self, msg, interfaces=None, broadcast_port=None, broadcast_time=None, broadcast_sleep=1, logger=None):
@@ -65,17 +65,8 @@ class Broadcaster:
         if isinstance(msg, str):
             msg = msg.encode()
         self.msg = msg
-        self.logger = logger if logger else self.__create_logger__()
+        self.logger = logger if logger else create_logger('broadcast-logger')
         self.sockets = {x: self.__create_socket__(x) for x in self.interfaces}
-
-    def __create_logger__(self):
-        logger = logging.getLogger(f'broadcast-logger')
-        logger.setLevel(logging.DEBUG)
-        ch = logging.StreamHandler()
-        formatter = logging.Formatter(f'%(asctime)s - [%(threadName)s] - %(levelname)s - %(message)s', '%H:%M:%S')
-        ch.setFormatter(formatter)
-        logger.addHandler(ch)
-        return logger
 
     def __create_socket__(self, iface):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -83,11 +74,11 @@ class Broadcaster:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         sock.settimeout(0.2)
         sock.setblocking(0)
-        self.logger.debug(f'creating broadcasting socket on: {(netifaces.ifaddresses(iface)[netifaces.AF_INET][0]["addr"], 44444)}')
+        # self.logger.debug(f'creating broadcasting socket on: {(netifaces.ifaddresses(iface)[netifaces.AF_INET][0]["addr"], 44444)}')
         sock.bind((netifaces.ifaddresses(iface)[netifaces.AF_INET][0]['addr'], 1234))
         return sock
 
-    def run(self):
+    def run(self, return_threads=False):
         def broadcast(sock):
             timeout = (time.time() + self.BROADCAST_TIME) if self.BROADCAST_TIME else False
             while True:
@@ -98,13 +89,10 @@ class Broadcaster:
                     # self.logger.debug(f'Broadcasting timeout')
                     break
 
-        # for iface, socket in self.sockets.items():
-        #     self.logger.debug(f'Broadcasting on {iface}...')
-        #     thread = threading.Thread(target=broadcast, name=f'broadcast_{iface}', args=(socket,))
-        #     # thread.setDaemon(True)
-        #     thread.start()
         threads = [threading.Thread(target=broadcast, name=f'broadcast_{iface}', args=(socket,)) for iface, socket in self.sockets.items()]
         [t.start() for t in threads]
+        if return_threads:
+            return threads
 
 class Node:
     CONF_PATH = 'config.yml'
@@ -131,12 +119,12 @@ class Node:
         with self.lock:
             if b'HELLO' == data:
                 if addr not in self.one_hop_neighbors and addr not in self.local_interfaces.values():
-                    # self.logger.info(f'adding {addr} to table')
                     self.one_hop_neighbors.append(addr)
 
     def update_neighbor_table(self, broadcast_time, listerning_time):
-        Broadcaster('HELLO', self.local_interfaces.keys(), self.broadcast_port, broadcast_time, logger=self.logger).run()
-        Listerner(self.local_interfaces.keys(), self.broadcast_port, listerning_time, self.logger, self.__update_one_neighbor_table__).run()
+        b_threads = Broadcaster('HELLO', self.local_interfaces.keys(), self.broadcast_port, broadcast_time, logger=self.logger).run(True)
+        l_threads = Listerner(self.local_interfaces.keys(), self.broadcast_port, listerning_time, self.logger, self.__update_one_neighbor_table__).run(True)
+        [x.join() for x in [*b_threads, *l_threads]]
 
 if len(sys.argv) > 2:
     print('Usage: python node.py [config]')
@@ -148,7 +136,6 @@ else:
     node = Node()
 
 node.update_neighbor_table(5,5)
-time.sleep(10)
 node.logger.info(f'One neighbor table: {node.one_hop_neighbors}\n')
 
 

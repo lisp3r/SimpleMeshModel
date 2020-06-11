@@ -6,17 +6,21 @@ import logging
 import threading
 import netifaces
 import re
+import message
 
 
-def create_logger(logger_name, formatter=None):
+def create_logger(logger_name, threads=True):
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
-    if not formatter:
+    if not threads:
+        formatter = logging.Formatter(f'%(asctime)s - %(levelname)s - %(message)s', '%H:%M:%S')
+    else:
         formatter = logging.Formatter(f'%(asctime)s - [%(threadName)s] - %(levelname)s - %(message)s', '%H:%M:%S')
     ch.setFormatter(formatter)
     logger.addHandler(ch)
     return logger
+
 
 class Listerner:
     def __init__(self, interfaces, listerning_port, listerning_time=None, logger=None, handler=None):
@@ -42,7 +46,7 @@ class Listerner:
             while True:
                 try:
                     data, addr = sock.recvfrom(1024)
-                    # self.logger.info(f'Recieved: {data}; from {addr[0]}')
+                    # self.logger.info(f'Recieved data; from {addr[0]}')
                     if self.handler:
                         self.handler(data, addr[0])
                     if timeout and time.time() > timeout:
@@ -62,8 +66,6 @@ class Broadcaster:
         self.interfaces = interfaces if interfaces else ['']
         self.BROADCAST_TIME = broadcast_time
         self.BROADCAST_SLEEP = broadcast_sleep
-        if isinstance(msg, str):
-            msg = msg.encode()
         self.msg = msg
         self.logger = logger if logger else create_logger('broadcast-logger')
         self.sockets = {x: self.__create_socket__(x) for x in self.interfaces}
@@ -83,7 +85,7 @@ class Broadcaster:
             timeout = (time.time() + self.BROADCAST_TIME) if self.BROADCAST_TIME else False
             while True:
                 # self.logger.debug(f'Broadcasting: {self.msg}')
-                sock.sendto(self.msg, (self.UDP_IP, self.UDP_PORT))
+                sock.sendto(self.msg.make(), (self.UDP_IP, self.UDP_PORT))
                 time.sleep(self.BROADCAST_SLEEP)
                 if timeout and time.time() > timeout:
                     # self.logger.debug(f'Broadcasting timeout')
@@ -96,34 +98,62 @@ class Broadcaster:
 
 class Node:
     CONF_PATH = 'config.yml'
+
     def __init__(self, config=CONF_PATH):
         self.name, self.network, self.exit_node, self.broadcast_port, self.interface_pattern = yaml.load(open(config, 'r'), Loader=yaml.Loader).values()
         self.ip_addr = socket.gethostbyname(socket.gethostname())
-        self.logger = self.__create_logger__()
+        self.logger = create_logger(f'{self.name}-logger', threads=False)
         self.logger.info(f'{self.name} created in {self.network} with parameters: exit_node={self.exit_node}')
         self.local_interfaces = {x: netifaces.ifaddresses(x)[netifaces.AF_INET][0]['addr'] for x in [i for i in netifaces.interfaces() if self.interface_pattern in i]}
-        self.one_hop_neighbors = []
-        self.two_hop_neighbors = []
+        self.neighbor_graph = []
+        # self.one_hop_neighbors = []
         self.lock = threading.RLock()
 
-    def __create_logger__(self):
-        logger = logging.getLogger(f'{self.name}-logger')
-        logger.setLevel(logging.DEBUG)
-        ch = logging.StreamHandler()
-        formatter = logging.Formatter(f'%(asctime)s - {self.name} - %(levelname)s - %(message)s', '%H:%M:%S')
-        ch.setFormatter(formatter)
-        logger.addHandler(ch)
-        return logger
+    def __create_neighbor__(self, data):
+        return {
+            'name': data.sender,
+            'addr': data.addr,
+            'neighbors': data.neighbors
+        }
 
-    def __update_one_neighbor_table__(self, data, addr):
+    def is_neighbor_exists(self, neighbor):
+        for x in self.neighbor_graph:
+            if x['addr'] == neighbor['addr']:
+                return True
+            if x['name'] == neighbor['name']:
+                return True
+        return False
+
+    def __update_neighbor_graph__(self, data, addr):
         with self.lock:
-            if b'HELLO' == data:
-                if addr not in self.one_hop_neighbors and addr not in self.local_interfaces.values():
-                    self.one_hop_neighbors.append(addr)
+            m = message.MessageHandler().unpack(data)
+            if m.message_type == 'HELLO':
+                if addr not in self.local_interfaces.values():
+                    m.addr = addr
+                    m_neighbor = self.__create_neighbor__(m)
+                    m_neighbor['neighbors'] = [x for x in m_neighbor['neighbors'] if x not in self.local_interfaces.values()]
+                    # self.logger.info(f'Recieved HELLO from {asddr}')
+                    if not self.is_neighbor_exists(m_neighbor):
+                        self.neighbor_graph.append(m_neighbor)
+                    else:
+                        # self.logger.info(f'{addr} already in table, updating neighbors with {m.neighbors}')
+                        for x in self.neighbor_graph:
+                            if x['addr'] == m_neighbor['addr']:
+                                x['neighbors'] = m_neighbor['neighbors']
 
     def update_neighbor_table(self, broadcast_time, listerning_time):
-        b_threads = Broadcaster('HELLO', self.local_interfaces.keys(), self.broadcast_port, broadcast_time, logger=self.logger).run(True)
-        l_threads = Listerner(self.local_interfaces.keys(), self.broadcast_port, listerning_time, self.logger, self.__update_one_neighbor_table__).run(True)
+        b_threads = Broadcaster(
+            message.MessageHandler().hello_message(self.name, self.neighbor_graph),
+            self.local_interfaces.keys(),
+            self.broadcast_port,
+            broadcast_time,
+            logger=self.logger).run(True)
+        l_threads = Listerner(
+            self.local_interfaces.keys(),
+            self.broadcast_port,
+            listerning_time,
+            self.logger,
+            self.__update_neighbor_graph__).run(True)
         [x.join() for x in [*b_threads, *l_threads]]
 
 if len(sys.argv) > 2:
@@ -135,8 +165,10 @@ if len(sys.argv) == 2:
 else:
     node = Node()
 
-node.update_neighbor_table(5,5)
-node.logger.info(f'One neighbor table: {node.one_hop_neighbors}\n')
+node.update_neighbor_table(3,3)
+# node.update_neighbor_table(3,3)
+
+node.logger.info(f'Neighbor graph: {node.neighbor_graph}\n')
 
 
 # while True:

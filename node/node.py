@@ -179,7 +179,7 @@ if len(sys.argv) == 2:
 else:
     node = Node()
 
-node.update_neighbor_table(3,3)
+node.update_neighbor_table(5,5)
 node.visualize_neighbors()
 
 node.logger.info(f'Neighbor graph: {node.neighbor_graph}\n')

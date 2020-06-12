@@ -9,6 +9,7 @@ import re
 import message
 import networkx as nx
 import matplotlib.pyplot as plt
+import random
 
 
 def create_logger(logger_name, threads=True):
@@ -47,7 +48,7 @@ class Listerner:
             timeout = (time.time() + self.LISTERNING_TIME) if self.LISTERNING_TIME else False
             while True:
                 try:
-                    data, addr = sock.recvfrom(1024)
+                    data, addr = sock.recvfrom(4096)
                     # self.logger.info(f'Recieved data; from {addr[0]}')
                     if self.handler:
                         self.handler(data, addr[0])
@@ -99,16 +100,17 @@ class Broadcaster:
             return threads
 
 class Node:
-    CONF_PATH = 'config.yml'
 
-    def __init__(self, config=CONF_PATH):
-        self.name, self.network, self.exit_node, self.broadcast_port, self.interface_pattern = yaml.load(open(config, 'r'), Loader=yaml.Loader).values()
-        self.ip_addr = socket.gethostbyname(socket.gethostname())
+    def __init__(self):
+        random.seed(socket.gethostname())
+        self.name = f'node{int(random.random()*100)}'
         self.logger = create_logger(f'{self.name}-logger', threads=False)
-        self.logger.info(f'{self.name} created in {self.network} with parameters: exit_node={self.exit_node}')
+        self.broadcast_port = 37020
+        self.interface_pattern = 'eth'
+        self.ip_addr = socket.gethostbyname(socket.gethostname())
         self.local_interfaces = {x: netifaces.ifaddresses(x)[netifaces.AF_INET][0]['addr'] for x in [i for i in netifaces.interfaces() if self.interface_pattern in i]}
         self.neighbor_graph = []
-        # self.one_hop_neighbors = []
+        self.logger.info(f'Node {self.name} created on {", ".join(list(self.local_interfaces.values()))}')
         self.lock = threading.RLock()
 
     def __create_neighbor__(self, data):
@@ -134,7 +136,7 @@ class Node:
                     m.addr = addr
                     m_neighbor = self.__create_neighbor__(m)
                     m_neighbor['neighbors'] = [x for x in m_neighbor['neighbors'] if x not in self.local_interfaces.values()]
-                    # self.logger.info(f'Recieved HELLO from {asddr}')
+                    # self.logger.info(f'Recieved HELLO from {addr}')
                     if not self.is_neighbor_exists(m_neighbor):
                         self.neighbor_graph.append(m_neighbor)
                     else:
@@ -170,15 +172,8 @@ class Node:
         nx.draw(G, with_labels=True, font_weight='bold')
         plt.savefig(f'artefacts/{self.name}.png')
 
-if len(sys.argv) > 2:
-    print('Usage: python node.py [config]')
-    exit(1)
 
-if len(sys.argv) == 2:
-    node = Node(sys.argv[1])
-else:
-    node = Node()
-
+node = Node()
 node.update_neighbor_table(5,5)
 node.visualize_neighbors()
 

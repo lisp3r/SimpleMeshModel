@@ -111,9 +111,15 @@ class Node:
         self.network_graph.add_node(self.name, addr=self.local_interfaces.values())
         self.neighbor_table = []
         self.lock = threading.RLock()
+        self.MPRs = []
 
-    def get_neighbors(self):
-        return [{'name': x, 'addr': self.network_graph.nodes().data()[x]['addr']} for x in list(self.network_graph.neighbors(self.name))]
+    def update_neighbors(self):
+        self.neighbor_table.clear()
+        for nbr in list(self.network_graph.neighbors(self.name)): 
+            self.neighbor_table.append({ 
+                'name': nbr,
+                'addr': self.network_graph.nodes().data()[nbr]['addr']
+            })
 
     def __update_neighbor_graph__(self, data, addr):
         with self.lock:
@@ -126,19 +132,10 @@ class Node:
                     self.network_graph.add_edge(self.name, m.sender)
                     for nbr in m.neighbors:
                         self.network_graph.add_edge(m.sender, nbr['name'])
-            # self.neighbor_table = self.get_neighbors()
-
-            self.neighbor_table.clear()
-            for nbr in list(self.network_graph.neighbors(self.name)): 
-                self.neighbor_table.append({ 
-                    'name': nbr,
-                    'addr': self.network_graph.nodes().data()[nbr]['addr']
-                })
-            print(f'Neighbors: {self.neighbor_table}')
+            self.update_neighbors()
 
     def update_neighbor_table(self, broadcast_time, listerning_time):
         b_threads = Broadcaster(
-            # message.MessageHandler().hello_message(self.name, self.neighbor_graph),
             message.MessageHandler().hello_message(self.name, self.neighbor_table),
             self.local_interfaces.keys(),
             self.broadcast_port,
@@ -157,6 +154,32 @@ class Node:
         nx.draw_shell(self.network_graph, with_labels=True)
         plt.savefig(f'artefacts/{self.name}.png')
 
+    def get_MPRs(self):
+        self.update_neighbors()
+        one_hop_nodes = list(self.network_graph.neighbors(self.name))
+        two_hope_nodes = [
+            x for x in nx.single_source_shortest_path_length(self.network_graph, self.name, cutoff=2) 
+            if nx.single_source_shortest_path_length(self.network_graph, self.name, cutoff=2)[x] == 2
+            ]
+        # print(f'one_hop_nodes: {one_hop_nodes}\ntwo_hope_nodes:', two_hope_nodes)
+        wannabe_mbr_set = []
+        while two_hope_nodes:
+            one_hop_nodes_dict = {}
+            for node in one_hop_nodes:
+                one_hop_nodes_dict[node] = [x for x in list(self.network_graph.neighbors(node)) if x != self.name]
+            one_hop_nodes_dict_sorted = {x: one_hop_nodes_dict[x] for x in sorted(one_hop_nodes_dict, key=lambda k: len(one_hop_nodes_dict[k]), reverse=True)}
+            wannabe_mbr = next(iter(one_hop_nodes_dict_sorted))
+            # print(f'one_hop_nodes_dict: {one_hop_nodes_dict_sorted}\nwanna_be_mbr: {wannabe_mbr}')
+            wannabe_mbr_set.append(wannabe_mbr)
+            one_hop_nodes = [x for x in one_hop_nodes if x not in wannabe_mbr]
+            two_hope_nodes = [item for item in two_hope_nodes if item not in one_hop_nodes_dict_sorted[wannabe_mbr]]
+            # print(f'one_hop_nodes: {one_hop_nodes}\ntwo_hope_nodes:', two_hope_nodes)
+        return wannabe_mbr_set
+
+    def create_MPR_set(self):
+        self.MPRs = self.get_MPRs()
+
+
 if len(sys.argv) > 2:
     print('Usage: python node.py [config]')
     exit(1)
@@ -168,5 +191,6 @@ else:
 
 node.update_neighbor_table(5,5)
 node.visualize_neighbors()
+node.get_MPRs()
 
-node.logger.info(f'Neighbor graph: {node.network_graph.edges()}\n')
+# node.logger.info(f'Neighbor graph: {node.network_graph.edges()}\n')

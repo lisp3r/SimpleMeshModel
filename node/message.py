@@ -41,11 +41,15 @@ class HelloMessage(Message):
     def __str__(self):
         return f'TYPE: {self.message_type}; SENDER: {self.sender}; ADDR: {self.addr}; NEIGHBORS: {self.neighbors}'
 
-# class TsMessage(Message):
-#     def __init__(self, sender, neighbor_table):
-#         super().__init__('TS')
-#         self.sender = sender
-#         self.payload = neighbor_table
+class TsMessage(Message):
+    def __init__(self, sender, mpr_set, addr=None):
+        self.message_type = 'HELLO'
+        self.sender = sender
+        self.addr = addr
+        self.mpr_set = mpr_set
+
+    def make(self):
+        pass
 
 class MessageHandler:
     def __pack__(self, message_type, **args):

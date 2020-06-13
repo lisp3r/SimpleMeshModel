@@ -47,8 +47,8 @@ class Listerner:
             timeout = (time.time() + self.LISTERNING_TIME) if self.LISTERNING_TIME else False
             while True:
                 try:
-                    data, addr = sock.recvfrom(1024)
-                    # self.logger.info(f'Recieved data; from {addr[0]}')
+                    data, addr = sock.recvfrom(4096)
+                    # self.logger.info(f'Recieved msg from {addr[0]}')
                     if self.handler:
                         self.handler(data, addr[0])
                     if timeout and time.time() > timeout:
@@ -102,50 +102,44 @@ class Node:
     CONF_PATH = 'config.yml'
 
     def __init__(self, config=CONF_PATH):
-        self.name, self.network, self.exit_node, self.broadcast_port, self.interface_pattern = yaml.load(open(config, 'r'), Loader=yaml.Loader).values()
+        self.name, self.network, self.broadcast_port, self.interface_pattern = yaml.load(open(config, 'r'), Loader=yaml.Loader).values()
         self.ip_addr = socket.gethostbyname(socket.gethostname())
         self.logger = create_logger(f'{self.name}-logger', threads=False)
-        self.logger.info(f'{self.name} created in {self.network} with parameters: exit_node={self.exit_node}')
         self.local_interfaces = {x: netifaces.ifaddresses(x)[netifaces.AF_INET][0]['addr'] for x in [i for i in netifaces.interfaces() if self.interface_pattern in i]}
-        self.neighbor_graph = []
-        # self.one_hop_neighbors = []
+        self.logger.info(f'{self.name} created in {self.network}. Local interfaces: {self.local_interfaces}')
+        self.network_graph = nx.Graph()
+        self.network_graph.add_node(self.name, addr=self.local_interfaces.values())
+        self.neighbor_table = []
         self.lock = threading.RLock()
 
-    def __create_neighbor__(self, data):
-        return {
-            'name': data.sender,
-            'addr': data.addr,
-            'neighbors': data.neighbors
-        }
-
-    def is_neighbor_exists(self, neighbor):
-        for x in self.neighbor_graph:
-            if x['addr'] == neighbor['addr']:
-                return True
-            if x['name'] == neighbor['name']:
-                return True
-        return False
+    def get_neighbors(self):
+        return [{'name': x, 'addr': self.network_graph.nodes().data()[x]['addr']} for x in list(self.network_graph.neighbors(self.name))]
 
     def __update_neighbor_graph__(self, data, addr):
         with self.lock:
             m = message.MessageHandler().unpack(data)
             if m.message_type == 'HELLO':
-                if addr not in self.local_interfaces.values():
-                    m.addr = addr
-                    m_neighbor = self.__create_neighbor__(m)
-                    m_neighbor['neighbors'] = [x for x in m_neighbor['neighbors'] if x not in self.local_interfaces.values()]
-                    # self.logger.info(f'Recieved HELLO from {asddr}')
-                    if not self.is_neighbor_exists(m_neighbor):
-                        self.neighbor_graph.append(m_neighbor)
-                    else:
-                        # self.logger.info(f'{addr} already in table, updating neighbors with {m.neighbors}')
-                        for x in self.neighbor_graph:
-                            if x['addr'] == m_neighbor['addr']:
-                                x['neighbors'] = m_neighbor['neighbors']
+                # self.logger.debug(f'Handle msg from {addr}: {m}')
+                if addr not in self.local_interfaces.values(): # not our broadcast msg
+                    # self.logger.debug(f'Adding node {m.sender}...')
+                    self.network_graph.add_node(m.sender, addr=[addr])
+                    self.network_graph.add_edge(self.name, m.sender)
+                    for nbr in m.neighbors:
+                        self.network_graph.add_edge(m.sender, nbr['name'])
+            # self.neighbor_table = self.get_neighbors()
+
+            self.neighbor_table.clear()
+            for nbr in list(self.network_graph.neighbors(self.name)): 
+                self.neighbor_table.append({ 
+                    'name': nbr,
+                    'addr': self.network_graph.nodes().data()[nbr]['addr']
+                })
+            print(f'Neighbors: {self.neighbor_table}')
 
     def update_neighbor_table(self, broadcast_time, listerning_time):
         b_threads = Broadcaster(
-            message.MessageHandler().hello_message(self.name, self.neighbor_graph),
+            # message.MessageHandler().hello_message(self.name, self.neighbor_graph),
+            message.MessageHandler().hello_message(self.name, self.neighbor_table),
             self.local_interfaces.keys(),
             self.broadcast_port,
             broadcast_time,
@@ -159,15 +153,8 @@ class Node:
         [x.join() for x in [*b_threads, *l_threads]]
 
     def visualize_neighbors(self):
-        G = nx.Graph()
-        G.add_node(self.name)
-        for neighbor in self.neighbor_graph:
-            G.add_edge(self.name, neighbor['name'])
-            for neighbor_2 in neighbor['neighbors']:
-                G.add_edge(neighbor['name'], neighbor_2['name'])
         plt.subplot()
-        # plt.subplots_adjust(top=0.1, bottom=0.0, right=0.1, left=0.0)
-        nx.draw(G, with_labels=True, font_weight='bold')
+        nx.draw_shell(self.network_graph, with_labels=True)
         plt.savefig(f'artefacts/{self.name}.png')
 
 if len(sys.argv) > 2:
@@ -182,10 +169,4 @@ else:
 node.update_neighbor_table(5,5)
 node.visualize_neighbors()
 
-node.logger.info(f'Neighbor graph: {node.neighbor_graph}\n')
-
-
-# while True:
-#     node.update_neighbor_table(5,5)
-
-#     node.logger.info(f'\nOne neighbor table: {node.one_hop_neighbors}\n')
+node.logger.info(f'Neighbor graph: {node.network_graph.edges()}\n')

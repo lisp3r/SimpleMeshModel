@@ -32,13 +32,16 @@ class HelloMessage(Message):
         self.message_type = 'HELLO'
         self.sender = sender
         self.addr = addr
-        self._neighbors = neighbor_table
+        # self._neighbors = neighbor_table
+        self.neighbors = neighbor_table
 
     def make(self):
-        # tmp = copy.copy(self._neighbors)
-        # self.neighbors = [x.pop('neighbors') for x in tmp]
-        self.neighbors = [{'name': x['name'], 'addr': x['addr']} for x in self._neighbors]
+        # self.neighbors = [{'name': x['name'], 'addr': x['addr']} for x in self._neighbors]
+        (f'Neighbors to send: {self.neighbors}')
         return pickle.dumps(self)
+
+    def __str__(self):
+        return f'TYPE: {self.message_type}; SENDER: {self.sender}; ADDR: {self.addr}; NEIGHBORS: {self.neighbors}'
 
 # class TsMessage(Message):
 #     def __init__(self, sender, neighbor_table):

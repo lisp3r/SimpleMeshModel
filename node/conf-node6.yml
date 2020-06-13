@@ -1,6 +1,5 @@
 name: node6
 networks:
   - network2
-exit_node: False
 broadcast_port: 37020 # must be the same for all the nodes
 interface_pattern: eth

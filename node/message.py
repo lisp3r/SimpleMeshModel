@@ -32,11 +32,9 @@ class HelloMessage(Message):
         self.message_type = 'HELLO'
         self.sender = sender
         self.addr = addr
-        # self._neighbors = neighbor_table
         self.neighbors = neighbor_table
 
     def make(self):
-        # self.neighbors = [{'name': x['name'], 'addr': x['addr']} for x in self._neighbors]
         (f'Neighbors to send: {self.neighbors}')
         return pickle.dumps(self)
 
@@ -57,5 +55,4 @@ class MessageHandler:
         return pickle.loads(message)
 
     def hello_message(self, sender, neighbor_table, addr=None):
-        # return self.__pack__('HELLO', sender=sender, neighbor_table=neighbor_table, addr=addr)
         return Message().from_type('HELLO', sender=sender, neighbor_table=neighbor_table, addr=addr)

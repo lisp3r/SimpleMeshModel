@@ -1,5 +1,5 @@
-name: node5
+name: node7
 networks:
-  - network2
+  - network3
 broadcast_port: 37020 # must be the same for all the nodes
 interface_pattern: eth

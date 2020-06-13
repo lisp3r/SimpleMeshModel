@@ -20,7 +20,7 @@ for conf in confs_nodes_files:
     node = {
         data['name']: {
             'container_name': data['name'],
-            'volumes': [f'./{conf}:/node/config.yml'],
+            'volumes': [f'./{conf}:/node/config.yml', './artefacts:/node/artefacts/'],
             'networks': data['networks'],
             **constant_service_fields
         }

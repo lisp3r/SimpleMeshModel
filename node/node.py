@@ -111,30 +111,36 @@ class Node:
         self.network_graph.add_node(self.name, addr=self.local_interfaces.values())
         self.neighbor_table = []
         self.lock = threading.RLock()
-        self.MPRs = []
+        self.MPR_list = []
+        self.MPR_selector_set = []
 
     def update_neighbors(self):
         self.neighbor_table.clear()
         for nbr in list(self.network_graph.neighbors(self.name)): 
             self.neighbor_table.append({ 
                 'name': nbr,
-                'addr': self.network_graph.nodes().data()[nbr]['addr']
+                'addr': self.network_graph.nodes().data()[nbr]['addr'],
+                'type': self.network_graph.nodes().data()[nbr]['type']
             })
 
-    def __update_neighbor_graph__(self, data, addr):
+    def __update_topology__(self, data, addr):
         with self.lock:
             m = message.MessageHandler().unpack(data)
             if m.message_type == 'HELLO':
                 # self.logger.debug(f'Handle msg from {addr}: {m}')
                 if addr not in self.local_interfaces.values(): # not our broadcast msg
                     # self.logger.debug(f'Adding node {m.sender}...')
-                    self.network_graph.add_node(m.sender, addr=[addr])
+                    node_type = 'MPR' if m.sender in self.MPR_list else 'simple'
+                    self.network_graph.add_node(m.sender, addr=[addr], type=node_type)
                     self.network_graph.add_edge(self.name, m.sender)
                     for nbr in m.neighbors:
+                        if nbr['name'] == self.name and nbr['type'] == 'MPR':
+                            if m.sender not in self.MPR_selector_set:
+                                self.MPR_selector_set.append(m.sender)
                         self.network_graph.add_edge(m.sender, nbr['name'])
             self.update_neighbors()
 
-    def update_neighbor_table(self, broadcast_time, listerning_time):
+    def update_topology(self, broadcast_time, listerning_time):
         b_threads = Broadcaster(
             message.MessageHandler().hello_message(self.name, self.neighbor_table),
             self.local_interfaces.keys(),
@@ -146,7 +152,7 @@ class Node:
             self.broadcast_port,
             listerning_time,
             self.logger,
-            self.__update_neighbor_graph__).run(True)
+            self.__update_topology__).run(True)
         [x.join() for x in [*b_threads, *l_threads]]
 
     def visualize_neighbors(self):
@@ -177,7 +183,7 @@ class Node:
         return wannabe_mbr_set
 
     def create_MPR_set(self):
-        self.MPRs = self.get_MPRs()
+        self.MPR_list = self.get_MPRs()
 
 
 if len(sys.argv) > 2:
@@ -189,8 +195,12 @@ if len(sys.argv) == 2:
 else:
     node = Node()
 
-node.update_neighbor_table(5,5)
+node.update_topology(5,5)
 node.visualize_neighbors()
-node.get_MPRs()
+node.MPR_list = node.get_MPRs()
+node.update_topology(5,5)
+node.update_topology(5,5)
 
-# node.logger.info(f'Neighbor graph: {node.network_graph.edges()}\n')
+# node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
+node.logger.info(f'MPR list: {node.MPR_list}')
+node.logger.info(f'MPR selector set: {node.MPR_selector_set}')

@@ -191,9 +191,11 @@ class Node:
                     color_map.append('green')
                 else:
                     color_map.append('blue')
-            nx.draw_shell(self.network_graph, node_color=color_map, with_labels=True)
+            nx.draw(self.network_graph, node_color=color_map, with_labels=True)
+            #nx.draw_shell(self.network_graph, node_color=color_map, with_labels=True)
         else:
-            nx.draw_shell(self.network_graph, with_labels=True)
+            nx.draw(self.network_graph, with_labels=True)
+            #nx.draw_shell(self.network_graph, with_labels=True)
         plt.savefig(f'artifacts/{self.name}.png')
 
     def get_data(self, node):
@@ -264,18 +266,21 @@ if len(sys.argv) == 2:
 else:
     node = Node()
 
-node.update_topology(3,3)
-# node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
+while True:
+    node.update_topology(5,10)
+    node.visualize_network(with_mpr=True)
 
-# node.visualize_network()
-node.update_topology(3,3)
-# node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
-node.update_topology(5,5)
-# node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
-node.update_topology(5,5)
+# # node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
+
+# # node.visualize_network()
+# node.update_topology(3,3)
+# # node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
 # node.update_topology(5,5)
-node.visualize_network(with_mpr=True)
+# # node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
+# node.update_topology(5,5)
+# # node.update_topology(5,5)
+# node.visualize_network(with_mpr=True)
 
-# node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
-node.logger.info(f'MPR list: {node.get_by("local_mpr")}, MPR selector set: {node.get_by("mprss")}')
-node.logger.info(node.get_notwork_info())
+# # node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
+# node.logger.info(f'MPR list: {node.get_by("local_mpr")}, MPR selector set: {node.get_by("mprss")}')
+# node.logger.info(node.get_notwork_info())

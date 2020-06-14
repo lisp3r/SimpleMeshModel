@@ -1,0 +1,8 @@
+name: {{ name }}
+networks:
+{%- for n in networks %}
+  - {{ n }}
+{%- endfor %}
+broadcast_port: 37020
+interface_pattern: eth
+graph_mode: "shell"

@@ -1,1 +1,4 @@
 __pycache__
+autogen/node-configs
+autogen/docker-compose.yml
+artefacts

@@ -1,0 +1,20 @@
+version: '3'
+networks:
+{%- for n in networks %}
+  {{ n }}:
+    driver: bridge
+{%- endfor %}
+services:
+{%- for n in nodes %}
+  {{ n.name }}:
+    build: ../node
+    command: python ./node.py
+    container_name: {{ n.name }}
+    networks:
+    {%- for nw in n.networks %}
+    - {{ nw }}
+    {%- endfor %}
+    volumes:
+    - {{ n.cfgfile }}:/node/config.yml
+    - ../artefacts:/node/artefacts/
+{%- endfor %}

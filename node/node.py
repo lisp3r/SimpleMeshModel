@@ -192,7 +192,7 @@ class Node:
         else:
             nx.draw(self.network_graph, with_labels=True)
             #nx.draw_shell(self.network_graph, with_labels=True)
-        if index:
+        if isinstance(image_postfix, int):
             image_name = f'artifacts/{self.name}-{image_postfix}.png'
         else:
             image_name = f'artifacts/{self.name}.png'
@@ -214,7 +214,7 @@ class Node:
             else:
                 edges_color.append(def_col)
         nx.draw_shell(self.network_graph, with_labels=True, edge_color=edges_color)
-        plt.savefig(f'artefacts/{self.name}-route.png')
+        plt.savefig(f'artifacts/{self.name}-route.png')
 
 
     def get_data(self, node):

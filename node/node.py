@@ -179,7 +179,7 @@ class Node:
                 logger=self.logger).run()
         [x.join() for x in [*b_threads, *l_threads]]
 
-    def visualize_network(self, with_mpr=False):
+    def visualize_network(self, with_mpr=False, image_postfix=None):
         plt.plot()
         plt.axis('off')
         if with_mpr:
@@ -196,7 +196,11 @@ class Node:
         else:
             nx.draw(self.network_graph, with_labels=True)
             #nx.draw_shell(self.network_graph, with_labels=True)
-        plt.savefig(f'artifacts/{self.name}.png')
+        if index:
+            image_name = f'artifacts/{self.name}-{image_postfix}.png'
+        else:
+            image_name = f'artifacts/{self.name}.png'
+        plt.savefig(image_name)
 
     def get_data(self, node):
         return self.network_graph.nodes().data()[node]
@@ -266,9 +270,11 @@ if len(sys.argv) == 2:
 else:
     node = Node()
 
+cycle_idx = 0
 while True:
     node.update_topology(5,10)
-    node.visualize_network(with_mpr=True)
+    node.visualize_network(with_mpr=True, image_postfix=cycle_idx)
+    cycle_idx += 1
 
 # # node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
 

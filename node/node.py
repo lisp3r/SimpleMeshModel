@@ -98,7 +98,23 @@ class Node:
     CONF_PATH = 'config.yml'
 
     def __init__(self, config=CONF_PATH):
-        self.name, self.network, self.broadcast_port, self.interface_pattern = yaml.load(open(config, 'r'), Loader=yaml.Loader).values()
+        cfg = yaml.load(open(config, 'r'), Loader=yaml.Loader)
+        self.name = cfg['name']
+        self.network = cfg['networks']
+        self.broadcast_port = cfg.get('broadcast_port', 37020)
+        self.interface_pattern = cfg.get('interface_pattern', 'eth')
+        # https://networkx.github.io/documentation/stable/reference/drawing.html
+        visualize_mode = cfg.get('visualize_mode')
+        if visualize_mode:
+            visualize_mode = f'draw_{visualize_mode}'
+        else:
+            visualize_mode = 'draw'
+        try:
+            self.visualize_method = getattr(nx, visualize_mode)
+            logging.warning(f"Using {visualize_mode} to visualize")
+        except AttributeError:
+            logging.warning(f"Unable to use {visualize_mode} to visualize, fall back to draw")
+            self.visualize_method = nx.draw
         self.ip_addr = socket.gethostbyname(socket.gethostname())
         self.logger = create_logger(f'{self.name}-logger', threads=False)
         self.local_interfaces = {x: netifaces.ifaddresses(x)[netifaces.AF_INET][0]['addr'] for x in [i for i in netifaces.interfaces() if self.interface_pattern in i]}
@@ -187,11 +203,9 @@ class Node:
                     color_map.append('green')
                 else:
                     color_map.append('blue')
-            nx.draw(self.network_graph, node_color=color_map, with_labels=True)
-            #nx.draw_shell(self.network_graph, node_color=color_map, with_labels=True)
+            self.visualize_method(self.network_graph, node_color=color_map, with_labels=True)
         else:
-            nx.draw(self.network_graph, with_labels=True)
-            #nx.draw_shell(self.network_graph, with_labels=True)
+            self.visualize_method(self.network_graph, with_labels=True)
         if isinstance(image_postfix, int):
             image_name = f'artifacts/{self.name}-{image_postfix}.png'
         else:
@@ -213,7 +227,7 @@ class Node:
                 edges_color.append(col)
             else:
                 edges_color.append(def_col)
-        nx.draw_shell(self.network_graph, with_labels=True, edge_color=edges_color)
+        self.visualize_method(self.network_graph, with_labels=True, edge_color=edges_color)
         plt.savefig(f'artifacts/{self.name}-route.png')
 
 

@@ -3,5 +3,6 @@ networks:
 {%- for n in networks %}
   - {{ n }}
 {%- endfor %}
-broadcast_port: 37020
-interface_pattern: eth
+#visualize_mode: kamada_kawai
+#visualize_mode: spring
+visualize_mode: spectral

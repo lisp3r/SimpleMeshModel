@@ -2,3 +2,5 @@ PyYAML
 netifaces
 networkx
 matplotlib
+# For beautiful graphs
+scipy

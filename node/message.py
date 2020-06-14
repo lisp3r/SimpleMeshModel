@@ -35,21 +35,25 @@ class HelloMessage(Message):
         self.neighbors = neighbor_table
 
     def make(self):
-        (f'Neighbors to send: {self.neighbors}')
+        # (f'Neighbors to send: {self.neighbors}')
         return pickle.dumps(self)
 
     def __str__(self):
         return f'TYPE: {self.message_type}; SENDER: {self.sender}; ADDR: {self.addr}; NEIGHBORS: {self.neighbors}'
 
-class TsMessage(Message):
-    def __init__(self, sender, mpr_set, addr=None):
-        self.message_type = 'HELLO'
+class TcMessage(Message):
+    def __init__(self, sender, mpr_set, addr=None, ansn=0):
+        self.message_type = 'TC'
+        self.ansn = ansn
         self.sender = sender
         self.addr = addr
         self.mpr_set = mpr_set
 
+    def __str__(self):
+        return f'TYPE: {self.message_type}; SENDER: {self.sender}; MPR SET: {self.mpr_set}'
+
     def make(self):
-        pass
+        return pickle.dumps(self)
 
 class MessageHandler:
     def __pack__(self, message_type, **args):
@@ -60,3 +64,6 @@ class MessageHandler:
 
     def hello_message(self, sender, neighbor_table, addr=None):
         return Message().from_type('HELLO', sender=sender, neighbor_table=neighbor_table, addr=addr)
+
+    def tc_message(self, sender, mpr_set, addr=None, ansn=0):
+        return Message().from_type('TC', sender=sender, mpr_set=mpr_set, addr=addr, ansn=ansn)

@@ -110,19 +110,8 @@ class Node:
         self.network_graph = nx.Graph()
         self.network_graph.add_node(self.name, addr=self.local_interfaces.values())
         self.neighbor_table = []
+        self.mpr_set = []
         self.lock = threading.RLock()
-
-    def update_neighbors(self):
-        self.logger.info(f'Updating neighbor table: {self.neighbor_table}')
-        self.neighbor_table.clear()
-        for nbr in list(self.network_graph.neighbors(self.name)): 
-            self.neighbor_table.append({ 
-                'name': nbr,
-                'addr': self.network_graph.nodes().data()[nbr]['addr'], # self.get_data(nbr)['addr']
-                'mpr': True if self.network_graph.nodes().data()[nbr].get('mpr') else False,
-                'mprss': True if self.network_graph.nodes().data()[nbr].get('mprss') else False
-            })
-        self.logger.info(f'Neighbor table updated: {self.neighbor_table}')
 
     def get_neighbors(self, node=None, dist=1):
         if not node:
@@ -137,39 +126,44 @@ class Node:
             return False
         return True
 
+    def get_notwork_info(self):
+        return f'{self.network_graph.edges()}\n{self.network_graph.nodes().data()}'
+
     def __update_topology__(self, data, addr):
-        self.logger.info('      In __update_topology__():')
+        # self.logger.info('      In __update_topology__():')
         with self.lock:
             m = message.MessageHandler().unpack(data)
             if m.message_type == 'HELLO':
                 if addr not in self.local_interfaces.values(): # not our broadcast msg
-                    self.logger.info(f'Got HELLO msg from neighbor: {m}')
+                    # self.logger.info(f'Got HELLO msg from neighbor: {m}')
                     # add node and edge
-                    self.logger.debug(f'Add node ({m.sender}, addr={[addr]})')
-                    self.logger.debug(f'Add edge ({self.name}, {m.sender})')
+                    # self.logger.debug(f'Add node ({m.sender}, addr={[addr]})')
+                    # self.logger.debug(f'Add edge ({self.name}, {m.sender})')
                     self.network_graph.add_node(m.sender, addr=[addr])
                     self.network_graph.add_edge(self.name, m.sender)
-                    self.logger.debug(f'{m.sender}"s neighbors:')
+                    # self.logger.debug(f'{m.sender}"s neighbors:')
                     for nbr in m.neighbors:
-                        self.logger.debug(f'    * {nbr}')
+                        # self.logger.debug(f'    * {nbr}')
                         # if me in sender's neighbors and he marked me as a MPR - mark he as mprss
-                        if nbr['name'] == self.name and nbr['mpr']:
+                        if nbr['name'] == self.name and nbr.get('local_mpr'):
+                        # if nbr['name'] == self.name and nbr.get('mpr'):
                             self.network_graph.add_node(m.sender, addr=[addr], mprss=True)
                             self.logger.debug(f'Node {m.sender} added me in a MBR set! I added it "mprss" flag')
-                        self.logger.debug(f'Add edge ({m.sender}, {nbr["name"]})')
+                        # self.logger.debug(f'Add edge ({m.sender}, {nbr["name"]})')
                         self.network_graph.add_edge(m.sender, nbr['name'])
             elif m.message_type == 'TC':
                 if addr not in self.local_interfaces.values():
-                    self.logger.debug(f'Got TC msg from neighbor: {m}')
+                    # self.logger.debug(f'Got TC msg from neighbor: {m}')
                     if m.sender in self.neighbor_table or m.sender in self.get_neighbors(dist=2):
+                        # mark as MPR (somebodie's MBR, nonlocal)
                         self.network_graph.add_node(m.sender, mpr=True)
-                        self.logger.debug(f'Add node ({m.sender}, mpr=True)')
-                        self.logger.debug(f'Adding {m.sender}"s neighbors:')
+                        # self.logger.debug(f'Add node ({m.sender}, mpr=True)')
+                        # self.logger.debug(f'Adding {m.sender}"s neighbors:')
                         for nbr in m.mpr_set:
-                            self.network_graph.add_edge(m.sender, nbr)
-                            self.logger.debug(f'    Add edge ({m.sender}, {nbr})')
+                            self.network_graph.add_edge(m.sender, nbr['name'])
+                            # self.logger.debug(f'    Add edge ({m.sender}, {nbr})')
                     if self.is_am_MPR():
-                        self.logger.info(f'Node in MPR, broadcasting messade {m} further...')
+                        # self.logger.info(f'Node in MPR, broadcasting messade {m} further...')
                         Broadcaster(m, self.local_interfaces.keys(),
                         self.broadcast_port, 5, logger=self.logger).run()
             self.update_neighbors()
@@ -190,7 +184,7 @@ class Node:
             self.__update_topology__).run(True)
         if self.is_am_MPR():
             Broadcaster(
-                message.MessageHandler().tc_message(self.name, self.get_by('mprss')),
+                message.MessageHandler().tc_message(self.name, self.mpr_set),
                 self.local_interfaces.keys(),
                 self.broadcast_port,
                 broadcast_time,
@@ -222,18 +216,32 @@ class Node:
         self.logger.debug(f'Getting by {arg}: {[x[0] for x in self.network_graph.nodes().data() if x[1].get(arg)]}')
         return [x[0] for x in self.network_graph.nodes().data() if x[1].get(arg)]
 
+    def update_neighbors(self):
+        # self.logger.info(f'Updating neighbor table: {self.neighbor_table}')
+        self.neighbor_table.clear()
+        for nbr in list(self.network_graph.neighbors(self.name)): 
+            self.neighbor_table.append({ 
+                'name': nbr,
+                'addr': self.network_graph.nodes().data()[nbr]['addr'], # self.get_data(nbr)['addr']
+                # 'mpr': True if self.network_graph.nodes().data()[nbr].get('local_mpr') else False,
+                'local_mpr': True if self.network_graph.nodes().data()[nbr].get('local_mpr') else False,
+                'mprss': True if self.network_graph.nodes().data()[nbr].get('mprss') else False
+            })
+        # self.logger.info(f'Neighbor table updated: {self.neighbor_table}')
+
     def update_MPRs(self):
-        self.logger.info(f'Updating MPR set: {self.neighbor_table}')
+        self.logger.info(f'Update MPR set')
         self.update_neighbors()
         any_in = lambda a, b: any(i in b for i in a)
 
         nodes_1 = self.get_neighbors()
         nodes_2 = self.get_neighbors(dist=2)
 
-        # self.logger.debug(f'1. one hop nodes: {nodes_1}; two hope nodes: {nodes_2}')
+        self.logger.debug(f'1. one hop nodes: {nodes_1}; two hope nodes: {nodes_2}')
         mpr_set = []
 
         # clean existing mpr set
+        self.mpr_set.clear()
         for node in self.network_graph:
             if self.get_data(node).get('local_mpr'):
                 self.network_graph.add_node(node, local_mpr=False)
@@ -247,18 +255,23 @@ class Node:
             mpr = next(iter(node_1_dict)) # first in sorted dict
             mpr_set.append(mpr)
 
-            # print(f'2. one hop nodes: {node_1_dict}; mpr: {mpr}')
+            print(f'2. one hop nodes: {node_1_dict}; mpr: {mpr}')
 
             nodes_2 = [x for x in nodes_2 if x not in node_1_dict[mpr]]
 
             upd_nodes_1_dict = [x for x in nodes_1 if x not in mpr_set]
             nodes_1 = [x for x in upd_nodes_1_dict if any_in(nodes_2, node_1_dict[x])]
 
-            # print(f'3. one_hop_nodes: {nodes_1}; two_hope_nodes:', nodes_2)
-        self.logger.info(f'Mpr set: {mpr_set}')
+            print(f'3. one_hop_nodes: {nodes_1}; two_hope_nodes:', nodes_2)
+        # self.logger.info(f'Mpr set: {mpr_set}')
         for node in self.network_graph:
             if node in mpr_set:
                 self.network_graph.add_node(node, local_mpr=True)
+                self.mpr_set.append({
+                    'name': node,
+                    'addr': self.get_data(node)
+                })
+        print(f'MPR set updates: {self.mpr_set}')
 
 if len(sys.argv) > 2:
     print('Usage: python node.py [config]')
@@ -270,17 +283,17 @@ else:
     node = Node()
 
 node.update_topology(3,3)
-node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
+# node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
 
 # node.visualize_network()
 node.update_topology(3,3)
 # node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
-# node.update_topology(5,5)
+node.update_topology(5,5)
 # node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
-# node.update_topology(5,5)
+node.update_topology(5,5)
 # node.update_topology(5,5)
 node.visualize_network(with_mpr=True)
 
 # node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
-node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
-node.logger.info(node.network_graph.edges())
+node.logger.info(f'MPR list: {node.get_by("local_mpr")}, MPR selector set: {node.get_by("mprss")}')
+node.logger.info(node.get_notwork_info())

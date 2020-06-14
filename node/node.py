@@ -10,6 +10,7 @@ import message
 import networkx as nx
 import matplotlib.pyplot as plt
 from copy import copy
+from random import choice
 
 def create_logger(logger_name, threads=True):
     logger = logging.getLogger(logger_name)
@@ -222,7 +223,6 @@ class Node:
                 })
 
     def update_MPRs(self):
-        self.logger.info(f'Update MPR set')
         self.update_neighbors()
         any_in = lambda a, b: any(i in b for i in a)
 
@@ -255,6 +255,16 @@ class Node:
             if node in mpr_set:
                 self.network_graph.add_node(node, local_mpr=True)
 
+    def get_route(self, dest_node):
+        if dest_node not in self.network_graph.nodes():
+            return []
+        return nx.shortest_path(self.network_graph, self.name, dest_node)
+
+def test_path(node):
+    neighbours = list(node.network_graph.neighbors(node.name)) + [node.name]
+    second_node = choice([x for x in node.network_graph.nodes() if x not in neighbours])
+    node.logger.info(f'Shortest path to {second_node}: {node.get_route(second_node)}')
+
 if len(sys.argv) > 2:
     print('Usage: python node.py [config]')
     exit(1)
@@ -277,5 +287,9 @@ node.update_topology(5,5)
 node.visualize_network(with_mpr=True)
 
 # node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
-node.logger.info(f'MPR list: {node.get_by("local_mpr")}, MPR selector set: {node.get_by("mprss")}')
-node.logger.info(node.get_notwork_info())
+# node.logger.info(f'MPR list: {node.get_by("local_mpr")}, MPR selector set: {node.get_by("mprss")}')
+# node.logger.info(node.get_notwork_info())
+
+test_path(node)
+test_path(node)
+test_path(node)

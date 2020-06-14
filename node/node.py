@@ -201,7 +201,6 @@ class Node:
 
     def get_by(self, arg) -> list:
         # return: ['node13', 'node14', 'node15', ...]
-        self.logger.debug(f'Getting by {arg}: {[x[0] for x in self.network_graph.nodes().data() if x[1].get(arg)]}')
         return [x[0] for x in self.network_graph.nodes().data() if x[1].get(arg)]
 
     def update_neighbors(self):
@@ -230,7 +229,6 @@ class Node:
         nodes_1 = self.get_neighbors()
         nodes_2 = self.get_neighbors(dist=2)
 
-        self.logger.debug(f'1. one hop nodes: {nodes_1}; two hope nodes: {nodes_2}')
         mpr_set = []
 
         # clean existing mpr set
@@ -248,14 +246,11 @@ class Node:
             mpr = next(iter(node_1_dict)) # first in sorted dict
             mpr_set.append(mpr)
 
-            print(f'2. one hop nodes: {node_1_dict}; mpr: {mpr}')
-
             nodes_2 = [x for x in nodes_2 if x not in node_1_dict[mpr]]
 
             upd_nodes_1_dict = [x for x in nodes_1 if x not in mpr_set]
             nodes_1 = [x for x in upd_nodes_1_dict if any_in(nodes_2, node_1_dict[x])]
 
-            print(f'3. one_hop_nodes: {nodes_1}; two_hope_nodes:', nodes_2)
         for node in self.network_graph:
             if node in mpr_set:
                 self.network_graph.add_node(node, local_mpr=True)

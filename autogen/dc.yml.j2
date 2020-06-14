@@ -16,5 +16,5 @@ services:
     {%- endfor %}
     volumes:
     - {{ n.cfgfile }}:/node/config.yml
-    - ../artefacts:/node/artefacts/
+    - ../artifacts:/node/artifacts/
 {%- endfor %}

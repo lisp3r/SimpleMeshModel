@@ -4,7 +4,7 @@ Repository structure:
 
       .
       ├── node
-      │   ├── artefacts            Contains network graps from nodes
+      │   ├── artifacts            Contains network graps from nodes
       │   │   ├── node1.png
       │   │   ├── ...
       │   ├── conf-node1.yml       Configuration for every node

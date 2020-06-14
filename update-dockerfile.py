@@ -7,9 +7,9 @@ df = {
     'services': {}
     }
 
-constant_service_fields = {'build': '.', 'command': 'python ./node.py'}
+constant_service_fields = {'build': 'node', 'command': 'python ./node.py'}
 
-confs_nodes_files = glob('conf-*.yml')
+confs_nodes_files = glob('conf/*.yml')
 
 networks = []
 # services = {'services': {}}
@@ -20,7 +20,7 @@ for conf in confs_nodes_files:
     node = {
         data['name']: {
             'container_name': data['name'],
-            'volumes': [f'./{conf}:/node/config.yml', '../artefacts:/node/artefacts/'],
+            'volumes': [f'./{conf}:/node/config.yml', './artifacts:/node/artifacts/'],
             'networks': data['networks'],
             **constant_service_fields
         }

@@ -194,7 +194,7 @@ class Node:
             nx.draw_shell(self.network_graph, node_color=color_map, with_labels=True)
         else:
             nx.draw_shell(self.network_graph, with_labels=True)
-        plt.savefig(f'artefacts/{self.name}.png')
+        plt.savefig(f'artifacts/{self.name}.png')
 
     def get_data(self, node):
         return self.network_graph.nodes().data()[node]

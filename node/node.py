@@ -197,6 +197,25 @@ class Node:
             nx.draw_shell(self.network_graph, with_labels=True)
         plt.savefig(f'artefacts/{self.name}.png')
 
+    def visualize_route(self, route):
+        def_col = 'b'
+        copy_graph = copy(self.network_graph)
+        plt.plot()
+        plt.axis('off')
+        start_node = route[0]
+        for hop in route[1:]:
+            copy_graph.edges[start_node, hop]['color'] = 'r'
+            start_node = hop
+        edges_color = []
+        for x in copy_graph.edges().data():
+            if(col := x[2].get('color')):
+                edges_color.append(col)
+            else:
+                edges_color.append(def_col)
+        nx.draw_shell(self.network_graph, with_labels=True, edge_color=edges_color)
+        plt.savefig(f'artefacts/{self.name}-route.png')
+
+
     def get_data(self, node):
         return self.network_graph.nodes().data()[node]
 
@@ -260,10 +279,13 @@ class Node:
             return []
         return nx.shortest_path(self.network_graph, self.name, dest_node)
 
-def test_path(node):
+def test_path(node, visualize=False):
     neighbours = list(node.network_graph.neighbors(node.name)) + [node.name]
     second_node = choice([x for x in node.network_graph.nodes() if x not in neighbours])
-    node.logger.info(f'Shortest path to {second_node}: {node.get_route(second_node)}')
+    route = node.get_route(second_node)
+    node.logger.info(f'Shortest path to {second_node}: {route}')
+    if visualize:
+        node.visualize_route(route)
 
 if len(sys.argv) > 2:
     print('Usage: python node.py [config]')
@@ -291,5 +313,5 @@ node.visualize_network(with_mpr=True)
 # node.logger.info(node.get_notwork_info())
 
 test_path(node)
-test_path(node)
-test_path(node)
+# test_path(node)
+# test_path(node)

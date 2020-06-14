@@ -10,6 +10,7 @@ import message
 import networkx as nx
 import matplotlib.pyplot as plt
 from copy import copy
+from random import choice
 
 def create_logger(logger_name, threads=True):
     logger = logging.getLogger(logger_name)
@@ -26,19 +27,18 @@ def create_logger(logger_name, threads=True):
 
 class Listerner:
     def __init__(self, interfaces, listerning_port, listerning_time=None, logger=None, handler=None):
-         self.logger = logger if logger else create_logger('listener-logger')
-         self.PORT = listerning_port
-         self.LISTERNING_TIME = listerning_time
-         self.interfaces = interfaces if interfaces else ['']
-         self.sockets = {x: self.__create_socket__(x) for x in self.interfaces}
-         self.handler = handler
+        self.logger = logger if logger else create_logger('listener-logger')
+        self.PORT = listerning_port
+        self.LISTERNING_TIME = listerning_time
+        self.interfaces = interfaces if interfaces else ['']
+        self.sockets = {x: self.__create_socket__(x) for x in self.interfaces}
+        self.handler = handler
 
     def __create_socket__(self, iface):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         sock.setblocking(0)
         sock.settimeout(self.LISTERNING_TIME)
-        # sock.bind((netifaces.ifaddresses(iface)[netifaces.AF_INET][0]['addr'], self.PORT))
         sock.bind(('', self.PORT))
         return sock
 
@@ -48,21 +48,21 @@ class Listerner:
             while True:
                 try:
                     data, addr = sock.recvfrom(4096)
-                    # self.logger.info(f'Recieved msg from {addr[0]}')
                     if self.handler:
                         self.handler(data, addr[0])
                     if timeout and time.time() > timeout:
                         break
                 except socket.timeout:
-                    # self.logger.debug(f'Listerning timeout')
                     return
-        threads = [threading.Thread(target=listen, name=f'listen_{iface}', args=(sc,)) for iface, sc in self.sockets.items()]
+        threads = [threading.Thread(
+            target=listen, name=f'listen_{iface}', args=(sc,)) for iface, sc in self.sockets.items()]
         [t.start() for t in threads]
         if return_threads:
             return threads
 
 class Broadcaster:
-    def __init__(self, msg, interfaces=None, broadcast_port=None, broadcast_time=None, broadcast_sleep=1, logger=None):
+    def __init__(self, msg, interfaces=None, broadcast_port=None,
+                                    broadcast_time=None, broadcast_sleep=1, logger=None):
         self.UDP_IP = '<broadcast>'
         self.UDP_PORT = broadcast_port if broadcast_port else 37020
         self.interfaces = interfaces if interfaces else ['']
@@ -74,11 +74,10 @@ class Broadcaster:
 
     def __create_socket__(self, iface):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1) # debug
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         sock.settimeout(0.2)
         sock.setblocking(0)
-        # self.logger.debug(f'creating broadcasting socket on: {(netifaces.ifaddresses(iface)[netifaces.AF_INET][0]["addr"], 44444)}')
         sock.bind((netifaces.ifaddresses(iface)[netifaces.AF_INET][0]['addr'], 1234))
         return sock
 
@@ -86,13 +85,10 @@ class Broadcaster:
         def broadcast(sock):
             timeout = (time.time() + self.BROADCAST_TIME) if self.BROADCAST_TIME else False
             while True:
-                # self.logger.debug(f'Broadcasting: {self.msg}')
                 sock.sendto(self.msg.make(), (self.UDP_IP, self.UDP_PORT))
                 time.sleep(self.BROADCAST_SLEEP)
                 if timeout and time.time() > timeout:
-                    # self.logger.debug(f'Broadcasting timeout')
                     break
-
         threads = [threading.Thread(target=broadcast, name=f'broadcast_{iface}', args=(socket,)) for iface, socket in self.sockets.items()]
         [t.start() for t in threads]
         if return_threads:
@@ -106,7 +102,8 @@ class Node:
         self.ip_addr = socket.gethostbyname(socket.gethostname())
         self.logger = create_logger(f'{self.name}-logger', threads=False)
         self.local_interfaces = {x: netifaces.ifaddresses(x)[netifaces.AF_INET][0]['addr'] for x in [i for i in netifaces.interfaces() if self.interface_pattern in i]}
-        self.logger.info(f'{self.name} created in {self.network}. Local interfaces: {self.local_interfaces}')
+        self.logger.info(
+            f'{self.name} created in {self.network}. Local interfaces: {self.local_interfaces}')
         self.network_graph = nx.Graph()
         self.network_graph.add_node(self.name, addr=self.local_interfaces.values())
         self.neighbor_table = []
@@ -141,7 +138,6 @@ class Node:
                         # if me in sender's neighbors and he marked me as a MPR - mark he as mprss
                         if nbr['name'] == self.name and nbr.get('local_mpr'):
                             self.network_graph.add_node(m.sender, addr=[addr], mprss=True)
-                            self.logger.debug(f'Node {m.sender} added me in a MBR set! I added it "mprss" flag')
                         self.network_graph.add_edge(m.sender, nbr['name'])
             elif m.message_type == 'TC':
                 if addr not in self.local_interfaces.values():
@@ -202,6 +198,25 @@ class Node:
             image_name = f'artifacts/{self.name}.png'
         plt.savefig(image_name)
 
+    def visualize_route(self, route):
+        def_col = 'b'
+        copy_graph = copy(self.network_graph)
+        plt.plot()
+        plt.axis('off')
+        start_node = route[0]
+        for hop in route[1:]:
+            copy_graph.edges[start_node, hop]['color'] = 'r'
+            start_node = hop
+        edges_color = []
+        for x in copy_graph.edges().data():
+            if(col := x[2].get('color')):
+                edges_color.append(col)
+            else:
+                edges_color.append(def_col)
+        nx.draw_shell(self.network_graph, with_labels=True, edge_color=edges_color)
+        plt.savefig(f'artefacts/{self.name}-route.png')
+
+
     def get_data(self, node):
         return self.network_graph.nodes().data()[node]
 
@@ -228,7 +243,6 @@ class Node:
                 })
 
     def update_MPRs(self):
-        self.logger.info(f'Update MPR set')
         self.update_neighbors()
         any_in = lambda a, b: any(i in b for i in a)
 
@@ -246,9 +260,13 @@ class Node:
             node_1_dict = {}
             for n in nodes_1:
                 # all two my 2-neighbors
-                node_1_dict[n] = [x for x in list(self.network_graph.neighbors(n)) if x in nodes_2 and x != self.name]
+                node_1_dict[n] = [x for x in list(self.network_graph.neighbors(n))
+                                  if x in nodes_2 and x != self.name]
 
-            node_1_dict = {x: node_1_dict[x] for x in sorted(node_1_dict, key=lambda k: len(node_1_dict[k]), reverse=True)}
+            node_1_dict = {x: node_1_dict[x] for x in sorted(
+                                                            node_1_dict,
+                                                            key=lambda k: len(node_1_dict[k]),
+                                                            reverse=True)}
             mpr = next(iter(node_1_dict)) # first in sorted dict
             mpr_set.append(mpr)
 
@@ -260,6 +278,19 @@ class Node:
         for node in self.network_graph:
             if node in mpr_set:
                 self.network_graph.add_node(node, local_mpr=True)
+
+    def get_route(self, dest_node):
+        if dest_node not in self.network_graph.nodes():
+            return []
+        return nx.shortest_path(self.network_graph, self.name, dest_node)
+
+def test_path(node, visualize=False):
+    neighbours = list(node.network_graph.neighbors(node.name)) + [node.name]
+    second_node = choice([x for x in node.network_graph.nodes() if x not in neighbours])
+    route = node.get_route(second_node)
+    node.logger.info(f'Shortest path to {second_node}: {route}')
+    if visualize:
+        node.visualize_route(route)
 
 if len(sys.argv) > 2:
     print('Usage: python node.py [config]')
@@ -287,6 +318,11 @@ while True:
 # # node.update_topology(5,5)
 # node.visualize_network(with_mpr=True)
 
-# # node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
-# node.logger.info(f'MPR list: {node.get_by("local_mpr")}, MPR selector set: {node.get_by("mprss")}')
+# node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
+# node.logger.info(f'MPR list: {node.get_by("local_mpr")},
+#                       MPR selector set: {node.get_by("mprss")}')
 # node.logger.info(node.get_notwork_info())
+
+test_path(node)
+# test_path(node)
+# test_path(node)

@@ -9,7 +9,7 @@ import re
 import message
 import networkx as nx
 import matplotlib.pyplot as plt
-
+from copy import copy
 
 def create_logger(logger_name, threads=True):
     logger = logging.getLogger(logger_name)
@@ -123,6 +123,25 @@ class Node:
                 'type': self.network_graph.nodes().data()[nbr]['type']
             })
 
+    def get_neighbors(self, node=None, dist=1):
+        if not node:
+            node = self.name
+        if dist == 1:
+            # list(self.network_graph.neighbors(self.name))
+            with self.lock:
+                self.update_neighbors()
+                return [x['name'] for x in self.neighbor_table]
+        else:
+            return [
+                x for x in nx.single_source_shortest_path_length(self.network_graph, node, cutoff=dist) 
+                if nx.single_source_shortest_path_length(self.network_graph, node, cutoff=dist)[x] == dist
+            ]
+
+    def is_am_MPR(self):
+        if not self.MPR_selector_set:
+            return False
+        return True
+
     def __update_topology__(self, data, addr):
         with self.lock:
             m = message.MessageHandler().unpack(data)
@@ -138,7 +157,20 @@ class Node:
                             if m.sender not in self.MPR_selector_set:
                                 self.MPR_selector_set.append(m.sender)
                         self.network_graph.add_edge(m.sender, nbr['name'])
+            elif m.message_type == 'TC':
+                if addr not in self.local_interfaces.values(): 
+                    # self.logger.debug(f'Handle TC msg from {addr}: {m}')
+                    if m.sender in self.neighbor_table or m.sender in self.get_neighbors(dist=2):
+                        self.logger.debug(f'Got TC msg from neighbor: {m}')
+                        self.network_graph.add_node(m.sender, mpr=True)
+                        for nbr in m.mpr_set:
+                            self.network_graph.add_edge(m.sender, nbr)
+
+                    if self.is_am_MPR():
+                        Broadcaster(m, self.local_interfaces.keys(),
+                        self.broadcast_port, 5,logger=self.logger).run()
             self.update_neighbors()
+            self.MPR_list = node.get_MPRs()
 
     def update_topology(self, broadcast_time, listerning_time):
         b_threads = Broadcaster(
@@ -153,38 +185,60 @@ class Node:
             listerning_time,
             self.logger,
             self.__update_topology__).run(True)
+        if self.is_am_MPR():
+            Broadcaster(
+                message.MessageHandler().tc_message(self.name, self.MPR_selector_set),
+                self.local_interfaces.keys(),
+                self.broadcast_port,
+                broadcast_time,
+                logger=self.logger).run()
         [x.join() for x in [*b_threads, *l_threads]]
 
-    def visualize_neighbors(self):
-        plt.subplot()
-        nx.draw_shell(self.network_graph, with_labels=True)
+    def visualize_network(self, with_mpr=False):
+        plt.plot()
+        plt.axis('off')
+        if with_mpr:
+            color_map = []
+            for node in self.network_graph:
+                if node in self.MPR_list:
+                    color_map.append('red')
+                elif self.network_graph.nodes().data()[node].get('mpr'):
+                    color_map.append('green')
+                else:
+                    color_map.append('blue')
+            nx.draw_shell(self.network_graph, node_color=color_map, with_labels=True)
+        else:
+            nx.draw_shell(self.network_graph, with_labels=True)
         plt.savefig(f'artefacts/{self.name}.png')
 
     def get_MPRs(self):
         self.update_neighbors()
-        one_hop_nodes = list(self.network_graph.neighbors(self.name))
-        two_hope_nodes = [
-            x for x in nx.single_source_shortest_path_length(self.network_graph, self.name, cutoff=2) 
-            if nx.single_source_shortest_path_length(self.network_graph, self.name, cutoff=2)[x] == 2
-            ]
-        # print(f'one_hop_nodes: {one_hop_nodes}\ntwo_hope_nodes:', two_hope_nodes)
-        wannabe_mbr_set = []
-        while two_hope_nodes:
-            one_hop_nodes_dict = {}
-            for node in one_hop_nodes:
-                one_hop_nodes_dict[node] = [x for x in list(self.network_graph.neighbors(node)) if x != self.name]
-            one_hop_nodes_dict_sorted = {x: one_hop_nodes_dict[x] for x in sorted(one_hop_nodes_dict, key=lambda k: len(one_hop_nodes_dict[k]), reverse=True)}
-            wannabe_mbr = next(iter(one_hop_nodes_dict_sorted))
-            # print(f'one_hop_nodes_dict: {one_hop_nodes_dict_sorted}\nwanna_be_mbr: {wannabe_mbr}')
-            wannabe_mbr_set.append(wannabe_mbr)
-            one_hop_nodes = [x for x in one_hop_nodes if x not in wannabe_mbr]
-            two_hope_nodes = [item for item in two_hope_nodes if item not in one_hop_nodes_dict_sorted[wannabe_mbr]]
-            # print(f'one_hop_nodes: {one_hop_nodes}\ntwo_hope_nodes:', two_hope_nodes)
-        return wannabe_mbr_set
+        any_in = lambda a, b: any(i in b for i in a)
 
-    def create_MPR_set(self):
-        self.MPR_list = self.get_MPRs()
+        nodes_1 = self.get_neighbors()
+        nodes_2 = self.get_neighbors(dist=2)
 
+        # self.logger.debug(f'1. one hop nodes: {nodes_1}; two hope nodes: {nodes_2}')
+        mpr_set = []
+
+        while nodes_2:
+            node_1_dict = {}
+            for n in nodes_1:
+                node_1_dict[n] = [x for x in list(self.network_graph.neighbors(n)) if x != self.name]
+
+            node_1_dict = {x: node_1_dict[x] for x in sorted(node_1_dict, key=lambda k: len(node_1_dict[k]), reverse=True)}
+            mpr = next(iter(node_1_dict)) # first in sorted dict
+            mpr_set.append(mpr)
+
+            # print(f'2. one hop nodes: {node_1_dict}; mpr: {mpr}')
+
+            nodes_2 = [x for x in nodes_2 if x not in node_1_dict[mpr]]
+
+            upd_nodes_1_dict = [x for x in nodes_1 if x not in mpr_set]
+            nodes_1 = [x for x in upd_nodes_1_dict if any_in(nodes_2, node_1_dict[x])]
+
+            # print(f'3. one_hop_nodes: {nodes_1}; two_hope_nodes:', nodes_2)
+        return mpr_set
 
 if len(sys.argv) > 2:
     print('Usage: python node.py [config]')
@@ -195,11 +249,14 @@ if len(sys.argv) == 2:
 else:
     node = Node()
 
-node.update_topology(5,5)
-node.visualize_neighbors()
-node.MPR_list = node.get_MPRs()
-node.update_topology(5,5)
-node.update_topology(5,5)
+node.update_topology(3,3)
+# node.MPR_list = node.get_MPRs()
+# node.visualize_network()
+# node.update_topology(3,3)
+# node.update_topology(5,5)
+# node.update_topology(5,5)
+# node.update_topology(5,5)
+node.visualize_network(with_mpr=True)
 
 # node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
 node.logger.info(f'MPR list: {node.MPR_list}')

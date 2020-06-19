@@ -42,7 +42,7 @@ class Listerner:
         sock.bind(('', self.PORT))
         return sock
 
-    def run(self, return_threads=False):
+    def run(self, return_threads=False, background=False):
         def listen(sock):
             timeout = (time.time() + self.LISTERNING_TIME) if self.LISTERNING_TIME else False
             while True:
@@ -56,13 +56,16 @@ class Listerner:
                     return
         threads = [threading.Thread(
             target=listen, name=f'listen_{iface}', args=(sc,)) for iface, sc in self.sockets.items()]
-        [t.start() for t in threads]
+        for thread in threads:
+            if background:
+                thread.daemon = True
+            thread.start()
         if return_threads:
             return threads
 
 class Broadcaster:
     def __init__(self, msg, interfaces=None, broadcast_port=None,
-                                    broadcast_time=None, broadcast_sleep=1, logger=None):
+                                    broadcast_time=None, broadcast_sleep=30, logger=None):
         self.UDP_IP = '<broadcast>'
         self.UDP_PORT = broadcast_port if broadcast_port else 37020
         self.interfaces = interfaces if interfaces else ['']
@@ -81,7 +84,7 @@ class Broadcaster:
         sock.bind((netifaces.ifaddresses(iface)[netifaces.AF_INET][0]['addr'], 1234))
         return sock
 
-    def run(self, return_threads=False):
+    def run(self, return_threads=False, background=False):
         def broadcast(sock):
             timeout = (time.time() + self.BROADCAST_TIME) if self.BROADCAST_TIME else False
             while True:
@@ -90,7 +93,10 @@ class Broadcaster:
                 if timeout and time.time() > timeout:
                     break
         threads = [threading.Thread(target=broadcast, name=f'broadcast_{iface}', args=(socket,)) for iface, socket in self.sockets.items()]
-        [t.start() for t in threads]
+        for thread in threads:
+            if background:
+                thread.daemon = True
+            thread.start()
         if return_threads:
             return threads
 
@@ -103,6 +109,8 @@ class Node:
         self.network = cfg['networks']
         self.broadcast_port = cfg.get('broadcast_port', 37020)
         self.interface_pattern = cfg.get('interface_pattern', 'eth')
+        self.ip_addr = socket.gethostbyname(socket.gethostname())
+        self.logger = create_logger(f'{self.name}-logger', threads=False)
         # https://networkx.github.io/documentation/stable/reference/drawing.html
         visualize_mode = cfg.get('visualize_mode')
         if visualize_mode:
@@ -111,12 +119,10 @@ class Node:
             visualize_mode = 'draw'
         try:
             self.visualize_method = getattr(nx, visualize_mode)
-            logging.warning(f"Using {visualize_mode} to visualize")
+            self.logger.warning(f"Using {visualize_mode} to visualize")
         except AttributeError:
-            logging.warning(f"Unable to use {visualize_mode} to visualize, fall back to draw")
+            self.logger.warning(f"Unable to use {visualize_mode} to visualize, fall back to draw")
             self.visualize_method = nx.draw
-        self.ip_addr = socket.gethostbyname(socket.gethostname())
-        self.logger = create_logger(f'{self.name}-logger', threads=False)
         self.local_interfaces = {x: netifaces.ifaddresses(x)[netifaces.AF_INET][0]['addr'] for x in [i for i in netifaces.interfaces() if self.interface_pattern in i]}
         self.logger.info(
             f'{self.name} created in {self.network}. Local interfaces: {self.local_interfaces}')
@@ -125,6 +131,7 @@ class Node:
         self.neighbor_table = []
         self.mpr_set = []
         self.lock = threading.RLock()
+        self.update_topology()
 
     def get_neighbors(self, node=None, dist=1):
         if not node:
@@ -169,29 +176,26 @@ class Node:
             self.update_MPRs()
             self.update_MPR_set()
 
-    def update_topology(self, broadcast_time, listerning_time):
-        b_threads = Broadcaster(
+    def update_topology(self):
+        Broadcaster(
             message.MessageHandler().hello_message(self.name, self.neighbor_table),
             self.local_interfaces.keys(),
             self.broadcast_port,
-            broadcast_time,
             logger=self.logger).run(True)
-        l_threads = Listerner(
+        Listerner(
             self.local_interfaces.keys(),
             self.broadcast_port,
-            listerning_time,
-            self.logger,
-            self.__update_topology__).run(True)
+            logger=self.logger,
+            handler=self.__update_topology__).run(True)
         if self.is_am_MPR():
             Broadcaster(
                 message.MessageHandler().tc_message(self.name, self.mpr_set),
                 self.local_interfaces.keys(),
                 self.broadcast_port,
-                broadcast_time,
                 logger=self.logger).run()
-        [x.join() for x in [*b_threads, *l_threads]]
 
     def visualize_network(self, with_mpr=False, image_postfix=None):
+        plt.clf()
         plt.plot()
         plt.axis('off')
         if with_mpr:
@@ -215,6 +219,7 @@ class Node:
     def visualize_route(self, route):
         def_col = 'b'
         copy_graph = copy(self.network_graph)
+        plt.clf()
         plt.plot()
         plt.axis('off')
         start_node = route[0]
@@ -315,9 +320,12 @@ if len(sys.argv) == 2:
 else:
     node = Node()
 
+# time.sleep(20)
+# node.visualize_network(with_mpr=True, image_postfix=cycle_idx)
+
 cycle_idx = 0
 while True:
-    node.update_topology(5,10)
+    time.sleep(10)
     node.visualize_network(with_mpr=True, image_postfix=cycle_idx)
     cycle_idx += 1
 
@@ -337,6 +345,6 @@ while True:
 #                       MPR selector set: {node.get_by("mprss")}')
 # node.logger.info(node.get_notwork_info())
 
-test_path(node)
+# test_path(node)
 # test_path(node)
 # test_path(node)

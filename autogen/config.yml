@@ -1,6 +1,6 @@
 # Count of networks to generate
-networks count: 8
+networks count: 5
 # Maximum % on networks node can be joint
-connectivity: 0.3
+connectivity: 0.4
 # Count of nodes to generats
-nodes count: 35
+nodes count: 15

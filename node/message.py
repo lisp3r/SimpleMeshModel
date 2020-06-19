@@ -11,7 +11,7 @@ import copy
 # * информация о соединении абонента с одношаговыми соседями.
 
 class Message:
-    MESSAGE_TYPES = ['HELLO', 'TC', 'MID']
+    MESSAGE_TYPES = ['HELLO', 'TC', 'CUSTOM']
 
     @classmethod
     def from_type(cls, message_type, **args):
@@ -25,7 +25,7 @@ class Message:
         return json.dumps(self.__dict__)
 
     def make(self):
-        return pickle.dumps()
+        return pickle.dumps(self)
 
 class HelloMessage(Message):
     def __init__(self, sender, neighbor_table, addr=None):
@@ -34,17 +34,12 @@ class HelloMessage(Message):
         self.addr = addr
         self.neighbors = neighbor_table
 
-    def make(self):
-        # (f'Neighbors to send: {self.neighbors}')
-        return pickle.dumps(self)
-
     def __str__(self):
         return f'TYPE: {self.message_type}; SENDER: {self.sender}; ADDR: {self.addr}; NEIGHBORS: {self.neighbors}'
 
 class TcMessage(Message):
-    def __init__(self, sender, mpr_set, addr=None, ansn=0):
+    def __init__(self, sender, mpr_set, addr=None):
         self.message_type = 'TC'
-        self.ansn = ansn
         self.sender = sender
         self.addr = addr
         self.mpr_set = mpr_set
@@ -52,8 +47,17 @@ class TcMessage(Message):
     def __str__(self):
         return f'TYPE: {self.message_type}; SENDER: {self.sender}; MPR SET: {self.mpr_set}'
 
-    def make(self):
-        return pickle.dumps(self)
+class CustomMessage(Message):
+    def __init__(self, sender, dest, msg, addr=None):
+        self.message_type = 'CUSTOM'
+        self.sender = sender
+        self.addr = addr
+        self.dest = dest
+        self.msg = msg
+        self.forwarders=[sender]
+
+    def __str__(self):
+        return self.msg
 
 class MessageHandler:
     def __pack__(self, message_type, **args):
@@ -65,5 +69,8 @@ class MessageHandler:
     def hello_message(self, sender, neighbor_table, addr=None):
         return Message().from_type('HELLO', sender=sender, neighbor_table=neighbor_table, addr=addr)
 
-    def tc_message(self, sender, mpr_set, addr=None, ansn=0):
-        return Message().from_type('TC', sender=sender, mpr_set=mpr_set, addr=addr, ansn=ansn)
+    def tc_message(self, sender, mpr_set, addr=None):
+        return Message().from_type('TC', sender=sender, mpr_set=mpr_set, addr=addr)
+
+    def custom_message(self, sender, dest, msg, addr=None):
+        return Message().from_type('CUSTOM', sender=sender, dest=dest, msg=msg, addr=addr)

@@ -10,7 +10,8 @@ import message
 import networkx as nx
 import matplotlib.pyplot as plt
 from copy import copy
-from random import choice
+from random import choice, randint
+
 
 def create_logger(logger_name, threads=True):
     logger = logging.getLogger(logger_name)
@@ -158,23 +159,34 @@ class Node:
                     self.network_graph.add_node(m.sender, addr=[addr])
                     self.network_graph.add_edge(self.name, m.sender)
                     for nbr in m.neighbors:
-                        # if me in sender's neighbors and he marked me as a MPR - mark he as mprss
+                        # if me in sender's neighbors and he marked me as a MPR - mark him as mprss
                         if nbr['name'] == self.name and nbr.get('local_mpr'):
                             self.network_graph.add_node(m.sender, addr=[addr], mprss=True)
                         self.network_graph.add_edge(m.sender, nbr['name'])
             elif m.message_type == 'TC':
                 if addr not in self.local_interfaces.values():
                     if m.sender in self.neighbor_table or m.sender in self.get_neighbors(dist=2):
-                        # mark as MPR (somebodie's MBR, nonlocal)
+                        # mark as MPR (somebody's MBR, nonlocal)
                         self.network_graph.add_node(m.sender, mpr=True)
                         for nbr in m.mpr_set:
                             self.network_graph.add_edge(m.sender, nbr['name'])
                     if self.is_am_MPR():
                         Broadcaster(m, self.local_interfaces.keys(),
                         self.broadcast_port, 5, logger=self.logger).run()
+            elif m.message_type == 'CUSTOM':
+                if m.dest == self.name:
+                    self.logger.info(f'Got CUSTOM message from {m.sender}: {m.msg}; path: {m.forwarders}')
+                    self.visualize_route(m.forwarders)
+                else:
+                    if self.is_am_MPR():
+                        self.logger.info(f'Got msg for {m.dest}. Forwarding...')
+                        m.forwarders.append(self.name)
+                        Broadcaster(m, self.local_interfaces.keys(),
+                        self.broadcast_port, 5, logger=self.logger).run()
             self.update_neighbors()
             self.update_MPRs()
             self.update_MPR_set()
+
 
     def update_topology(self):
         Broadcaster(
@@ -234,7 +246,6 @@ class Node:
                 edges_color.append(def_col)
         self.visualize_method(self.network_graph, with_labels=True, edge_color=edges_color)
         plt.savefig(f'artifacts/{self.name}-route.png')
-
 
     def get_data(self, node):
         return self.network_graph.nodes().data()[node]
@@ -303,13 +314,31 @@ class Node:
             return []
         return nx.shortest_path(self.network_graph, self.name, dest_node)
 
+    def send_message(self, msg, dest_node):
+        path = self.get_route(dest_node)
+        self.logger.info(f'Sending "{msg}" to {dest_node}. Expected path: {path}')
+        Broadcaster(
+            message.MessageHandler().custom_message(self.name, dest_node, msg),
+            self.local_interfaces.keys(),
+            self.broadcast_port,
+            broadcast_time=5,
+            logger=self.logger,
+        ).run(background=True)
+
+
 def test_path(node, visualize=False):
-    neighbours = list(node.network_graph.neighbors(node.name)) + [node.name]
-    second_node = choice([x for x in node.network_graph.nodes() if x not in neighbours])
+    # neighbours = list(node.network_graph.neighbors(node.name)) + [node.name]
+    # second_node = choice([x for x in node.network_graph.nodes() if x not in neighbours])
+    dist = 5
+    second_node = None
+    while not second_node:
+        second_node = choice(node.get_neighbors(dist=dist))
+        dist = dist-1
     route = node.get_route(second_node)
     node.logger.info(f'Shortest path to {second_node}: {route}')
     if visualize:
         node.visualize_route(route)
+
 
 if len(sys.argv) > 2:
     print('Usage: python node.py [config]')
@@ -321,12 +350,31 @@ else:
     node = Node()
 
 # time.sleep(20)
+# node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
+# time.sleep(20)
+# node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
+# time.sleep(20)
+# node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
+# node.visualize_network(with_mpr=True)
+
+# lvl = 5
+# n = node.get_neighbors(dist=lvl)
+# if not n:
+#     while not n:
+#         lvl = lvl-1
+#         n = node.get_neighbors(dist=lvl)
+
+# node.send_message('Hello, friend!', n[randint(0, len(n))])
+
+# time.sleep(20)
+
 # node.visualize_network(with_mpr=True, image_postfix=cycle_idx)
 
 cycle_idx = 0
 while True:
-    time.sleep(10)
-    node.visualize_network(with_mpr=True, image_postfix=cycle_idx)
+    time.sleep(5)
+    # node.visualize_network(with_mpr=True, image_postfix=cycle_idx)
+    node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
     cycle_idx += 1
 
 # # node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
@@ -345,6 +393,6 @@ while True:
 #                       MPR selector set: {node.get_by("mprss")}')
 # node.logger.info(node.get_notwork_info())
 
-# test_path(node)
+# test_path(node, True)
 # test_path(node)
 # test_path(node)

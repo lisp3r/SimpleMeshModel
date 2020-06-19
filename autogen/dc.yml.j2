@@ -15,6 +15,6 @@ services:
     - {{ nw }}
     {%- endfor %}
     volumes:
-    - {{ n.cfgfile }}:/node/config.yml
+    - ./{{ n.cfgfile }}:/node/config.yml
     - ../artifacts:/node/artifacts/
 {%- endfor %}

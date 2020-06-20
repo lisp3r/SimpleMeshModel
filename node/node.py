@@ -33,20 +33,10 @@ class NetWorker:
     def __init__(self, port):
         self.__logger = create_logger('networker')
         self.__interfaces_for_addr = {x: netifaces.ifaddresses(x)[netifaces.AF_INET][0]['addr'] for x in [i for i in netifaces.interfaces() if 'eth' in i]}
-        self.__logger.warning(self.local_interfaces())
-        self.__logger.warning(self.local_addrs())
         self.__port = port
-        self.__broadcast_sockets = [self.__get_broadcast_socket(x) for x in self.local_addrs()]
-        self.__listening_sockets = [self.__get_listen_socket(x) for x in self.local_interfaces()]
-
-    def local_interfaces(self):
-        #return list(self.__interfaces_for_addr.keys()
-        return self.__interfaces_for_addr.keys()
 
     def local_addrs(self):
-        #return list(self.__interfaces_for_addr.values())
         return self.__interfaces_for_addr.values()
-
 
     def is_local_addr(self, addr):
         return addr in self.local_addrs()
@@ -55,30 +45,25 @@ class NetWorker:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        sock.settimeout(0.2)
-        sock.setblocking(0)
+        sock.setblocking(True)
         sock.bind((addr, self.__port))
         return sock
 
-    def __get_listen_socket(self, iface):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        sock.setblocking(0)
-        sock.settimeout(None)
-        sock.bind(('', self.__port))
-        return sock
+    def __broadcast_sockets(self):
+        return [self.__get_broadcast_socket(x) for x in self.local_addrs()]
 
     def send_broadcast(self, msg):
-         for socket in self.__broadcast_sockets:
+         for socket in self.__broadcast_sockets():
             socket.sendto(msg, ('<broadcast>', self.__port))
+            socket.close()
 
-    def __listener(self, sock, handler):
-        while True:
-            data, (addr, _) = sock.recvfrom(4096)
+    def listener(self, handler):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            sock.setblocking(True)
+            sock.bind(('', self.__port))
+            data, (addr, _) = sock.recvfrom(40000)
             handler(data, addr)
-
-    def set_listen(self, handler):
-        return [threading.Thread(target=self.__listener, args=(sock, handler)) for sock in self.__listening_sockets]
 
 class Node:
     CONF_PATH = 'config.yml'
@@ -117,9 +102,6 @@ class Node:
         else:
             return False
 
-    # def get_network_info(self):
-    #     return f'{self.network_graph.edges()}\n{self.network_graph.nodes().data()}'
-
     def process_msg(self, data, addr):
         # Ignore self messages
         if self.net_worker.is_local_addr(addr):
@@ -127,11 +109,9 @@ class Node:
         with self.lock:
             m = message.Message.unpack(data)
             if m.message_type == 'HELLO':
-                # add node and edge
                 self.network_graph.add_node(m.sender, addr=[addr])
                 self.network_graph.add_edge(self.name, m.sender)
                 for nbr in m.neighbors:
-                    # if me in sender's neighbors and he marked me as a MPR - mark him as mprss
                     if nbr['name'] == self.name:
                         if nbr.get('local_mpr'):
                             self.network_graph.add_node(m.sender, addr=[addr], mprss=True)
@@ -329,8 +309,8 @@ class NodeWorker:
     THREADS = []
     SLEEPS = {
         'main': 60,
-        'visualize': 20,
-        'workload': 120,
+        'visualize': 10,
+        'workload': 20,
         'casts': 5
     }
 
@@ -356,9 +336,11 @@ class NodeWorker:
         while(True):
             time.sleep(cls.SLEEPS['visualize'])
             node.visualize_network(with_mpr=True)
+        node.logger.info("Vizualization end")
 
     @classmethod
     def workload(cls, node):
+        node.logger.info("Workload started")
         while True:
             if node.name == 'nw7-n1':
                 if 'nw5-n1' in node.get_neighbors(dist=None):
@@ -369,25 +351,30 @@ class NodeWorker:
             else:
                 break
             time.sleep(cls.SLEEPS['workload'])
+        node.logger.info("Workload end")
 
     @classmethod
     def cast_hello(cls, node):
+        node.logger.info("Cast hello started")
         while True:
             node.send_hello()
             time.sleep(cls.SLEEPS['casts'])
+        node.logger.info("Cast hello end")
 
     @classmethod
     def listen(cls, node):
-        l_threads = node.net_worker.set_listen(node.process_msg)
-        [l.start() for l in l_threads]
-        # They're infinite
-        [l.join() for l in l_threads]
+        node.logger.info("Listen started")
+        while True:
+            node.net_worker.listener(node.process_msg)
+        node.logger.info("END Listen")
 
     @classmethod
     def cast_tc(cls, node):
+        node.logger.info("TC cast started")
         while True:
             node.send_tc()
             time.sleep(cls.SLEEPS['casts'])
+        node.logger.info("TC cast end")
 
 if __name__ == '__main__':
 

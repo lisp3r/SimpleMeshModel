@@ -1,0 +1,7 @@
+name: gw12
+networks:
+  - network4
+  - network7
+#visualize_mode: kamada_kawai
+visualize_mode: spring
+#visualize_mode: spectral

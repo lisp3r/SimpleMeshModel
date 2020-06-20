@@ -1,0 +1,6 @@
+name: nw1-n0
+networks:
+  - network1
+#visualize_mode: kamada_kawai
+visualize_mode: spring
+#visualize_mode: spectral

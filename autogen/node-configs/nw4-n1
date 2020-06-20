@@ -1,0 +1,6 @@
+name: nw4-n1
+networks:
+  - network4
+#visualize_mode: kamada_kawai
+visualize_mode: spring
+#visualize_mode: spectral

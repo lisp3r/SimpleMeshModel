@@ -1,0 +1,9 @@
+name: gw24
+networks:
+  - network9
+  - network0
+  - network6
+  - network2
+#visualize_mode: kamada_kawai
+visualize_mode: spring
+#visualize_mode: spectral

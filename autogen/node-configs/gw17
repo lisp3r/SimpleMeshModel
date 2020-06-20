@@ -1,0 +1,8 @@
+name: gw17
+networks:
+  - network6
+  - network7
+  - network4
+#visualize_mode: kamada_kawai
+visualize_mode: spring
+#visualize_mode: spectral

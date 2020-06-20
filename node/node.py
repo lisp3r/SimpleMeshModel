@@ -17,12 +17,15 @@ def create_logger(logger_name, threads=True):
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
+    fh = logging.FileHandler(f'artifacts/{logger_name}')
     if not threads:
-        formatter = logging.Formatter(f'%(asctime)s - %(levelname)s - %(message)s', '%H:%M:%S')
+        formatter = logging.Formatter(f'%(message)s', '%H:%M:%S')
     else:
         formatter = logging.Formatter(f'%(asctime)s - [%(threadName)s] - %(levelname)s - %(message)s', '%H:%M:%S')
     ch.setFormatter(formatter)
+    fh.setFormatter(formatter)
     logger.addHandler(ch)
+    logger.addHandler(fh)
     return logger
 
 
@@ -127,8 +130,8 @@ class Node:
             # self.logger.warning(f"Unable to use {visualize_mode} to visualize, fall back to draw")
             self.visualize_method = nx.draw
         self.local_interfaces = {x: netifaces.ifaddresses(x)[netifaces.AF_INET][0]['addr'] for x in [i for i in netifaces.interfaces() if self.interface_pattern in i]}
-        self.logger.info(
-            f'{self.name} created in {self.network}. Local interfaces: {self.local_interfaces}')
+        # self.logger.info(
+        #     f'{self.name} created in {self.network}. Local interfaces: {self.local_interfaces}')
         self.network_graph = nx.Graph()
         self.network_graph.add_node(self.name, addr=self.local_interfaces.values())
         self.neighbor_table = []
@@ -167,7 +170,7 @@ class Node:
                         self.network_graph.add_edge(m.sender, nbr['name'])
             elif m.message_type == 'TC':
                 if addr not in self.local_interfaces.values():
-                    if m.sender in self.neighbor_table or m.sender in self.get_neighbors(dist=2):
+                    if m.sender in self.get_neighbors(dist=2):
                         # mark as MPR (somebody's MBR, nonlocal)
                         self.network_graph.add_node(m.sender, mpr=True)
                         for nbr in m.mpr_set:
@@ -177,15 +180,20 @@ class Node:
                         Broadcaster(m, self.local_interfaces.keys(),
                         broadcast_port=self.broadcast_port, broadcast_time=5, logger=self.logger).run()
             elif m.message_type == 'CUSTOM':
-                if m.dest == self.name:
-                    self.logger.info(f'Got CUSTOM message from {m.sender}: {m.msg}; path: {m.forwarders}')
-                    self.visualize_route(m.forwarders)
-                else:
-                    if self.is_am_MPR():
-                        self.logger.info(f'Got msg for {m.dest}. Forwarding...')
-                        m.forwarders.append(self.name)
-                        Broadcaster(m, self.local_interfaces.keys(),
-                        broadcast_port=self.broadcast_port, broadcast_time=5, logger=self.logger).run()
+                if addr not in self.local_interfaces.values():
+                    if m.dest == self.name:
+                        self.logger.info(f'Got CUSTOM message from {m.sender}: {m.msg}; path: {m.forwarders}')
+                        try:
+                            self.visualize_route(m.forwarders)
+                        except Exception as e:
+                            self.logger.error(f'{e}\n{self.network_graph}')
+                    else:
+                        if self.is_am_MPR():
+                            if m.sender != self.name:
+                                # self.logger.info(f'I am an MPR for {self.get_by("mprss")}. I got msg from {m.sender} to {m.dest}. Its prev path: {m.forwarders}. Forwarding...')
+                                m.forwarders.append(self.name)
+                                Broadcaster(m, self.local_interfaces.keys(),
+                                broadcast_port=self.broadcast_port, broadcast_time=1, logger=self.logger).run()
             self.update_neighbors()
             self.update_MPRs()
             self.update_MPR_set()
@@ -308,6 +316,7 @@ class Node:
             upd_nodes_1_dict = [x for x in nodes_1 if x not in mpr_set]
             nodes_1 = [x for x in upd_nodes_1_dict if any_in(nodes_2, node_1_dict[x])]
 
+        # self.logger.info(f'My MPRs is {mpr_set}')
         for node in self.network_graph:
             if node in mpr_set:
                 self.network_graph.add_node(node, local_mpr=True)
@@ -327,6 +336,26 @@ class Node:
             broadcast_time=5,
             logger=self.logger,
         ).run(background=True)
+
+    # def __ips__(self, data, addr):
+    #     pass
+
+    # def ips(self, event='message'):
+    #     def watch(nbr):
+    #         m = message.MessageHandler().unpack(data)
+
+    #     # message do not be dropped by neighbors!
+    #     neighbors_1 = copy(self.neighbor_table)
+    #     neighbors_2 = self.get_neighbors(dist=2)
+
+    #     Listerner(
+    #             self.local_interfaces,
+    #             self.broadcast_port,
+    #             listerning_time=None,
+    #             listerning_port=self.broadcast_port,
+    #             logger=self.logger,
+    #             handler=self.__ips__
+    #     )
 
 
 def test_path(node, visualize=False):
@@ -374,9 +403,14 @@ node.visualize_network(with_mpr=True)
 # node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
 # node.logger.info(nx.single_source_shortest_path_length(node.network_graph, None, cutoff=3))
 
-node.logger.info(f'All nbrs: {nx.single_source_shortest_path_length(node.network_graph, node.name)}')
+# node.logger.info(f'All nbrs: {nx.single_source_shortest_path_length(node.network_graph, node.name)}')
 
-node.logger.info(f'3-hop: {node.get_neighbors(dist=3)}')
+dist=4
+lvl=None
+while not lvl:
+    lvl = node.get_neighbors(dist=dist)
+    dist = dist-1
+node.send_message(f'Hello, {dist+1}-hop friend!', choice(lvl))
 
 exit(0)
 # node.visualize_network(with_mpr=True, image_postfix=cycle_idx)

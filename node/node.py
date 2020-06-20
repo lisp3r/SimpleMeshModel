@@ -122,9 +122,9 @@ class Node:
             visualize_mode = 'draw'
         try:
             self.visualize_method = getattr(nx, visualize_mode)
-            self.logger.warning(f"Using {visualize_mode} to visualize")
+            # self.logger.warning(f"Using {visualize_mode} to visualize")
         except AttributeError:
-            self.logger.warning(f"Unable to use {visualize_mode} to visualize, fall back to draw")
+            # self.logger.warning(f"Unable to use {visualize_mode} to visualize, fall back to draw")
             self.visualize_method = nx.draw
         self.local_interfaces = {x: netifaces.ifaddresses(x)[netifaces.AF_INET][0]['addr'] for x in [i for i in netifaces.interfaces() if self.interface_pattern in i]}
         self.logger.info(
@@ -171,7 +171,7 @@ class Node:
                         # mark as MPR (somebody's MBR, nonlocal)
                         self.network_graph.add_node(m.sender, mpr=True)
                         for nbr in m.mpr_set:
-                            print(f"Adding {nbr['name']}")
+                            # print(f"Adding {nbr['name']}")
                             self.network_graph.add_edge(m.sender, nbr['name'])
                     if self.is_am_MPR():
                         Broadcaster(m, self.local_interfaces.keys(),
@@ -369,16 +369,24 @@ else:
 
 # node.send_message('Hello, friend!', n[randint(0, len(n))])
 
-# time.sleep(20)
+time.sleep(120)
+node.visualize_network(with_mpr=True)
+# node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
+# node.logger.info(nx.single_source_shortest_path_length(node.network_graph, None, cutoff=3))
 
+node.logger.info(f'All nbrs: {nx.single_source_shortest_path_length(node.network_graph, node.name)}')
+
+node.logger.info(f'3-hop: {node.get_neighbors(dist=3)}')
+
+exit(0)
 # node.visualize_network(with_mpr=True, image_postfix=cycle_idx)
 
-cycle_idx = 0
-while True:
-    time.sleep(5)
-    node.visualize_network(with_mpr=True, image_postfix=cycle_idx)
-    node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
-    cycle_idx += 1
+# cycle_idx = 0
+# while True:
+#     time.sleep(5)
+#     node.visualize_network(with_mpr=True, image_postfix=cycle_idx)
+#     node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
+#     cycle_idx += 1
 
 # # node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
 

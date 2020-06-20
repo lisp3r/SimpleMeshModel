@@ -1,6 +1,0 @@
-name: node12
-networks:
-  - network1
-  - network4
-broadcast_port: 37020 # must be the same for all the nodes
-interface_pattern: eth

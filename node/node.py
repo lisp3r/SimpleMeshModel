@@ -99,7 +99,6 @@ class Node:
             self.visualize_method = nx.draw
         self.network_graph = nx.Graph()
         self.network_graph.add_node(self.name, addr=self.net_worker.local_addrs())
-        self.neighbor_table = []
         self.mpr_set = []
         self.lock = threading.RLock()
 
@@ -112,13 +111,14 @@ class Node:
         else:
             return list(all_nbrs.keys())
 
-    def is_am_MPR(self):
-        if not self.get_by('mprss'):
+    def __is_mpr(self):
+        if any(self.__get_by('mprss')):
+            return True
+        else:
             return False
-        return True
 
-    def get_network_info(self):
-        return f'{self.network_graph.edges()}\n{self.network_graph.nodes().data()}'
+    # def get_network_info(self):
+    #     return f'{self.network_graph.edges()}\n{self.network_graph.nodes().data()}'
 
     def process_msg(self, data, addr):
         # Ignore self messages
@@ -132,12 +132,15 @@ class Node:
                 self.network_graph.add_edge(self.name, m.sender)
                 for nbr in m.neighbors:
                     # if me in sender's neighbors and he marked me as a MPR - mark him as mprss
-                    if nbr['name'] == self.name and nbr.get('local_mpr'):
-                        self.network_graph.add_node(m.sender, addr=[addr], mprss=True)
+                    if nbr['name'] == self.name:
+                        if nbr.get('local_mpr'):
+                            self.network_graph.add_node(m.sender, addr=[addr], mprss=True)
+                        else:
+                            self.network_graph.add_node(m.sender, addr=[addr], mprss=False)
                     self.network_graph.add_edge(m.sender, nbr['name'])
             elif m.message_type == 'TC':
                 if m.sender in self.get_neighbors(dist=None):
-                    self.parse_tc(m)
+                    self.__parse_tc(m)
                 self.send_tc(forwarded_msg=m)
             elif m.message_type == 'CUSTOM':
                 if m.dest == self.name:
@@ -147,36 +150,35 @@ class Node:
                     except Exception as e:
                         self.logger.error(f'{e}\n{self.network_graph}')
                 else:
-                    if self.is_am_MPR() and self.is_on_route(m):
+                    if self.__is_mpr() and self.__is_on_route(m):
                         if m.sender != self.name:
                             if self.side == 'good':
                                 if self.name not in m.forwarders:
-                                    self.logger.info(f'I am MPR for {self.get_by("mprss")}. My MPRS: {self.get_by("mpr")}. I got msg from {m.sender} to {m.dest}. Its prev path: {m.forwarders}. Forwarding...')
+                                    self.logger.info(f'I am MPR for {self.__get_by("mprss")}. My MPRS: {self.__get_by("mpr")}. I got msg from {m.sender} to {m.dest}. Its prev path: {m.forwarders}. Forwarding...')
                                     m.forwarders.append(self.name)
                                     self.net_worker.send_broadcast(m)
                             elif self.side == 'evil':
                                 self.logger.info(f'I got msg from {m.sender} to {m.dest}. Its prev path: {m.forwarders}. Dropping...')
-            self.update_neighbors()
-            self.update_MPRs()
-            self.update_MPR_set()
+            self.__update_mprs()
+            self.__update_mpr_set()
 
-    def is_on_route(self, msg):
-        full_route = self.get_route(msg.dest, msg.forwarders[-1])
+    def __is_on_route(self, msg):
+        full_route = self.__get_route(msg.dest, msg.forwarders[-1])
         return self.name in full_route and self.name not in msg.forwarders
 
-    def parse_tc(self, msg):
+    def __parse_tc(self, msg):
         # mark as MPR (somebody's MBR, nonlocal)
         self.network_graph.add_node(msg.sender, mpr=True)
         for nbr in msg.mpr_set:
             # Node is in graph and has other MPR or didn't choose previously
-            if nbr['name'] in self.network_graph and self.get_data(nbr['name']).get('choosen_mpr') != msg.sender:
+            if nbr['name'] in self.network_graph:
+                old_nbr_mpr = self.__get_data(nbr['name']).get('local_mpr')
                 # It had other MPR
-                if self.get_data(nbr['name']).get('choosen_mpr'):
-                    old_nbr_mpr = self.get_data(nbr['name']).get('choosen_mpr')
+                if old_nbr_mpr and old_nbr_mpr != msg.sender:
                     # Unset it as MPR in our ghraph
                     if old_nbr_mpr in self.network_graph:
                         self.network_graph.nodes()[old_nbr_mpr]['mpr'] = False
-                self.network_graph.add_node(nbr['name'], choosen_mpr=msg.sender)
+                self.network_graph.add_node(nbr['name'], local_mpr=msg.sender)
             self.network_graph.add_edge(msg.sender, nbr['name'])
 
     def visualize_network(self, with_mpr=False, image_postfix=None):
@@ -187,9 +189,9 @@ class Node:
             if with_mpr:
                 color_map = []
                 for node in self.network_graph:
-                    if node in self.get_by('local_mpr'):
+                    if node in self.__get_by('local_mpr'):
                         color_map.append('red')
-                    elif node in self.get_by('mpr'):
+                    elif node in self.__get_by('mpr'):
                         color_map.append('green')
                     else:
                         color_map.append('blue')
@@ -222,31 +224,21 @@ class Node:
         self.visualize_method(self.network_graph, with_labels=True, edge_color=edges_color)
         plt.savefig(f'artifacts/{self.name}-route.png')
 
-    def get_data(self, node):
+    def __get_data(self, node):
         return self.network_graph.nodes().data()[node]
 
-    def get_by(self, arg) -> list:
+    def __get_by(self, arg) -> list:
         return [x[0] for x in self.network_graph.nodes().data() if x[1].get(arg)]
 
-    def update_neighbors(self):
-        self.neighbor_table.clear()
-        for nbr in list(self.network_graph.neighbors(self.name)): 
-            self.neighbor_table.append({ 
-                'name': nbr,
-                'addr': self.get_data(nbr)['addr'],
-                'local_mpr': True if self.get_data(nbr).get('local_mpr') else False,
-                'mprss': True if self.get_data(nbr).get('mprss') else False
-            })
-
-    def update_MPR_set(self):
+    def __update_mpr_set(self):
         self.mpr_set.clear()
-        for node in self.get_by("mprss"):
+        for node in self.__get_by("mprss"):
             self.mpr_set.append({
                     'name': node,
-                    'addr': self.get_data(node)
+                    'addr': self.__get_data(node)
                 })
 
-    def update_MPRs(self):
+    def __update_mprs(self):
         any_in = lambda a, b: any(i in b for i in a)
 
         nodes_1 = self.get_neighbors()
@@ -256,7 +248,7 @@ class Node:
 
         # clean existing mpr set
         for node in self.network_graph:
-            if self.get_data(node).get('local_mpr'):
+            if self.__get_data(node).get('local_mpr'):
                 self.network_graph.add_node(node, local_mpr=False)
 
         while nodes_2:
@@ -282,7 +274,7 @@ class Node:
             if node in mpr_set:
                 self.network_graph.add_node(node, local_mpr=True)
 
-    def get_route(self, dest_node, src_node=None):
+    def __get_route(self, dest_node, src_node=None):
         if not src_node:
             src_node = self.name
         if dest_node not in self.network_graph.nodes():
@@ -290,36 +282,44 @@ class Node:
         return nx.shortest_path(self.network_graph, src_node, dest_node)
 
     def send_hello(self):
-        msg =  message.Message.from_type(
-                    'HELLO', sender=self.name, neighbor_table=self.neighbor_table)
-        self.net_worker.send_broadcast(msg.pack())
+        with self.lock:
+            nbrs = [
+                {'name': nbr,
+                'addr': self.__get_data(nbr)['addr'],
+                'local_mpr': True if self.__get_data(nbr).get('local_mpr') else False,
+                'mprss': self.__get_data(nbr).get('mprss',False)} for nbr in list(self.network_graph.neighbors(self.name))]
+            msg =  message.Message.from_type(
+                        'HELLO', sender=self.name, neighbor_table=nbrs)
+            self.net_worker.send_broadcast(msg.pack())
 
     def send_tc(self, forwarded_msg=None):
-        if forwarded_msg:
-            tc_message = forwarded_msg
-        else:
-            tc_message = message.Message.from_type(
-                'TC', sender=self.name, mpr_set=self.mpr_set)
-        if self.is_am_MPR():
-            self.net_worker.send_broadcast(tc_message.pack())
+        with self.lock:
+            if forwarded_msg:
+                tc_message = forwarded_msg
+            else:
+                tc_message = message.Message.from_type(
+                    'TC', sender=self.name, mpr_set=self.mpr_set)
+            if self.__is_mpr():
+                self.net_worker.send_broadcast(tc_message.pack())
 
     def send_message(self, msg, dest_node):
-        path = self.get_route(dest_node)
-        self.logger.info(f'Sending "{msg}" to {dest_node}. Expected path: {path}')
-        self.net_worker.send_broadcast(
-            message.Message.from_type(
-                'CUSTOM', sender=self.name, dest=dest_node, msg=msg).pack())
+        with self.lock:
+            path = self.__get_route(dest_node)
+            self.logger.info(f'Sending "{msg}" to {dest_node}. Expected path: {path}')
+            self.net_worker.send_broadcast(
+                message.Message.from_type(
+                    'CUSTOM', sender=self.name, dest=dest_node, msg=msg).pack())
 
-def test_path(node, visualize=False):
-    dist = 5
-    second_node = None
-    while not second_node:
-        second_node = choice(node.get_neighbors(dist=dist))
-        dist = dist-1
-    route = node.get_route(second_node)
-    node.logger.info(f'Shortest path to {second_node}: {route}')
-    if visualize:
-        node.visualize_route(route)
+# def test_patth(node, visualize=False):
+#     dist = 5
+#     second_node = None
+#     while not second_node:
+#         second_node = choice(node.get_neighbors(dist=dist))
+#         dist = dist-1
+#     route = node.__get_route(second_node)
+#     node.logger.info(f'Shortest path to {second_node}: {route}')
+#     if visualize:
+#         node.visualize_route(route)
 
 class NodeWorker:
     """
@@ -353,7 +353,7 @@ class NodeWorker:
 
     @classmethod
     def visualize(cls, node):
-        node.logger.info("Vizualization thread")
+        node.logger.info("Vizualization started")
         while(True):
             time.sleep(cls.SLEEPS['visualize'])
             node.visualize_network(with_mpr=True)
@@ -363,7 +363,6 @@ class NodeWorker:
         while True:
             if node.name == 'nw7-n1':
                 if 'nw5-n1' in node.get_neighbors(dist=None):
-                    node.logger.info(f"Route: {node.get_route('nw5-n1')}")
                     node.send_message(f'Hello, X-hop friend!', 'nw5-n1')
                     break
                 else:

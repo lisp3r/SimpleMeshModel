@@ -1,557 +1,0 @@
-Found orphan containers (node21, node4, node5, node14, node9, nw3-node2, node3, node23, nw1-node2, nw4-node2, nw5-node2, nw0-node2, nw6-node2, nw2-node2, node8, node11) for this project. If you removed or renamed this service in your compose file, you can run this command with the --remove-orphans flag to clean it up.
-Building nw6-n1
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw6-n1:latest
-Building nw9-n1
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw9-n1:latest
-Building nw7-n1
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw7-n1:latest
-Building nw3-n1
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw3-n1:latest
-Building gw17
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_gw17:latest
-Building nw0-n1
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw0-n1:latest
-Building nw9-n0
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw9-n0:latest
-Building gw2
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_gw2:latest
-Building nw0-n0
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw0-n0:latest
-Building nw2-n1
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw2-n1:latest
-Building gw7
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_gw7:latest
-Building nw8-n1
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw8-n1:latest
-Building nw1-n1
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw1-n1:latest
-Building nw3-n0
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw3-n0:latest
-Building nw1-n0
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw1-n0:latest
-Building nw4-n1
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw4-n1:latest
-Building nw8-n0
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw8-n0:latest
-Building nw5-n0
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw5-n0:latest
-Building nw4-n0
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw4-n0:latest
-Building nw6-n0
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw6-n0:latest
-Building gw24
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_gw24:latest
-Building nw7-n0
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw7-n0:latest
-Building nw5-n1
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw5-n1:latest
-Building gw12
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_gw12:latest
-Building nw2-n0
-Step 1/6 : FROM python:latest
- ---> 7f5b6ccd03e9
-Step 2/6 : ADD requirements.txt /node/
- ---> Using cache
- ---> bb673a11533d
-Step 3/6 : WORKDIR /node/
- ---> Using cache
- ---> 59b351c2fe39
-Step 4/6 : RUN pip3 install -r requirements.txt
- ---> Using cache
- ---> eaae6b9dea18
-Step 5/6 : ADD node.py /node/
- ---> Using cache
- ---> 8ab70fdfa461
-Step 6/6 : ADD message.py /node/
- ---> Using cache
- ---> 5c26cb7430ee
-Successfully built 5c26cb7430ee
-Successfully tagged autogen_nw2-n0:latest
-Creating gw12 ... 
-Creating gw2  ... 
-Creating gw24 ... 
-Creating nw3-n0 ... 
-Creating gw7    ... 
-Creating nw2-n1 ... 
-Creating nw4-n0 ... 
-Creating nw0-n0 ... 
-Creating nw6-n0 ... 
-Creating nw2-n0 ... 
-Creating nw0-n1 ... 
-Creating nw8-n0 ... 
-Creating nw7-n0 ... 
-Creating nw5-n1 ... 
-Creating nw5-n0 ... 
-Creating nw7-n1 ... 
-Creating nw1-n1 ... 
-Creating nw6-n1 ... 
-Creating nw9-n1 ... 
-Creating nw1-n0 ... 
-Creating nw9-n0 ... 
-Creating nw3-n1 ... 
-Creating gw17   ... 
-Creating nw4-n1 ... 
-Creating nw8-n1 ... 
-[20A[2KCreating nw2-n1 ... [32mdone[0m[20B[22A[2KCreating nw3-n0 ... [32mdone[0m[22B[18A[2KCreating nw0-n0 ... [32mdone[0m[18B[19A[2KCreating nw4-n0 ... [32mdone[0m[19B[17A[2KCreating nw6-n0 ... [32mdone[0m[17B[2A[2KCreating nw4-n1 ... [32mdone[0m[2B[14A[2KCreating nw8-n0 ... [32mdone[0m[14B[7A[2KCreating nw9-n1 ... [32mdone[0m[7B[5A[2KCreating nw9-n0 ... [32mdone[0m[5B[15A[2KCreating nw0-n1 ... [32mdone[0m[15B[12A[2KCreating nw5-n1 ... [32mdone[0m[12B[13A[2KCreating nw7-n0 ... [32mdone[0m[13B[16A[2KCreating nw2-n0 ... [32mdone[0m[16B[21A[2KCreating gw7    ... [32mdone[0m[21B[25A[2KCreating gw12   ... [32mdone[0m[25B[11A[2KCreating nw5-n0 ... [32mdone[0m[11B[9A[2KCreating nw1-n1 ... [32mdone[0m[9B[4A[2KCreating nw3-n1 ... [32mdone[0m[4B[1A[2KCreating nw8-n1 ... [32mdone[0m[1B[8A[2KCreating nw6-n1 ... [32mdone[0m[8B[10A[2KCreating nw7-n1 ... [32mdone[0m[10B[6A[2KCreating nw1-n0 ... [32mdone[0m[6B[23A[2KCreating gw24   ... [32mdone[0m[23B[3A[2KCreating gw17   ... [32mdone[0m[3B[24A[2KCreating gw2    ... [32mdone[0m[24BAttaching to nw2-n1, nw3-n0, nw0-n0, nw4-n0, nw6-n0, nw4-n1, nw8-n0, nw9-n1, nw9-n0, nw0-n1, nw5-n1, nw7-n0, nw2-n0, gw7, gw12, nw5-n0, nw1-n1, nw3-n1, nw8-n1, nw6-n1, nw7-n1, nw1-n0, gw24, gw17, gw2
-[36mnw7-n1    |[0m Route: []
-[36mnw7-n1    |[0m Sending "Hello, X-hop friend!" to nw5-n1. Expected path: []
-[34;1mnw7-n0    |[0m I am MPR for ['nw7-n1']. My MPRS: ['nw6-n0']. I got msg from nw7-n1 to nw5-n1. Its prev path: ['nw7-n1']. Forwarding...
-[36mgw12      |[0m I am MPR for ['nw4-n0']. My MPRS: ['nw6-n0']. I got msg from nw7-n1 to nw5-n1. Its prev path: ['nw7-n1', 'nw7-n0']. Forwarding...
-Stopping nw8-n1 ... 
-Stopping nw4-n1 ... 
-Stopping gw17   ... 
-Stopping nw3-n1 ... 
-Stopping nw9-n0 ... 
-Stopping nw1-n0 ... 
-Stopping nw9-n1 ... 
-Stopping nw6-n1 ... 
-Stopping nw1-n1 ... 
-Stopping nw7-n1 ... 
-Stopping nw5-n0 ... 
-Stopping nw5-n1 ... 
-Stopping nw8-n0 ... 
-Stopping nw7-n0 ... 
-Stopping nw0-n1 ... 
-Stopping nw2-n0 ... 
-Stopping nw6-n0 ... 
-Stopping nw4-n0 ... 
-Stopping nw0-n0 ... 
-Stopping nw2-n1 ... 
-Stopping gw7    ... 
-Stopping gw12   ... 
-Stopping nw3-n0 ... 
-Stopping gw2    ... 
-Stopping gw24   ... 
-[11A[2KStopping nw0-n1 ... [32mdone[0m[11B[25A[2KStopping nw8-n1 ... [32mdone[0m[25B[21A[2KStopping nw9-n0 ... [32mdone[0m[21B[9A[2KStopping nw6-n0 ... [32mdone[0m[9B[18A[2KStopping nw6-n1 ... [32mdone[0m[18B[20A[2KStopping nw1-n0 ... [32mdone[0m[20B[7A[2KStopping nw0-n0 ... [32mdone[0m[7B[19A[2KStopping nw9-n1 ... [32mdone[0m[19B[13A[2KStopping nw8-n0 ... [32mdone[0m[13B[8A[2KStopping nw4-n0 ... [32mdone[0m[8B[14A[2KStopping nw5-n1 ... [32mdone[0m[14B[6A[2KStopping nw2-n1 ... [32mdone[0m[6B[17A[2KStopping nw1-n1 ... [32mdone[0m[17B[10A[2KStopping nw2-n0 ... [32mdone[0m[10B[22A[2KStopping nw3-n1 ... [32mdone[0m[22B[24A[2KStopping nw4-n1 ... [32mdone[0m[24B[15A[2KStopping nw5-n0 ... [32mdone[0m[15B[16A[2KStopping nw7-n1 ... [32mdone[0m[16B[3A[2KStopping nw3-n0 ... [32mdone[0m[3B[12A[2KStopping nw7-n0 ... [32mdone[0m[12B[5A[2KStopping gw7    ... [32mdone[0m[5B[4A[2KStopping gw12   ... [32mdone[0m[4B[23A[2KStopping gw17   ... [32mdone[0m[23B[2A[2KStopping gw2    ... [32mdone[0m[2B[1A[2KStopping gw24   ... [32mdone[0m[1BGracefully stopping... (press Ctrl+C again to force)

@@ -28,83 +28,57 @@ def create_logger(logger_name, threads=True):
     logger.addHandler(fh)
     return logger
 
+class NetWorker:
 
-class Listerner:
-    def __init__(self, interfaces, listerning_port, listerning_time=None, logger=None, handler=None):
-        self.logger = logger if logger else create_logger('listener-logger')
-        self.PORT = listerning_port
-        self.LISTERNING_TIME = listerning_time
-        self.interfaces = interfaces if interfaces else ['']
-        self.sockets = {x: self.__create_socket__(x) for x in self.interfaces}
-        self.handler = handler
+    def __init__(self, port):
+        self.__logger = create_logger('networker')
+        self.__interfaces_for_addr = {x: netifaces.ifaddresses(x)[netifaces.AF_INET][0]['addr'] for x in [i for i in netifaces.interfaces() if 'eth' in i]}
+        self.__logger.warning(self.local_interfaces())
+        self.__logger.warning(self.local_addrs())
+        self.__port = port
+        self.__broadcast_sockets = [self.__get_broadcast_socket(x) for x in self.local_addrs()]
+        self.__listening_sockets = [self.__get_listen_socket(x) for x in self.local_interfaces()]
 
-    def __create_socket__(self, iface):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        sock.setblocking(0)
-        sock.settimeout(self.LISTERNING_TIME)
-        sock.bind(('', self.PORT))
-        return sock
+    def local_interfaces(self):
+        #return list(self.__interfaces_for_addr.keys()
+        return self.__interfaces_for_addr.keys()
 
-    def run(self, return_threads=False, background=False):
-        def listen(sock):
-            timeout = (time.time() + self.LISTERNING_TIME) if self.LISTERNING_TIME else False
-            while True:
-                try:
-                    data, addr = sock.recvfrom(4096)
-                    if self.handler:
-                        self.handler(data, addr[0])
-                    if timeout and time.time() > timeout:
-                        break
-                except socket.timeout:
-                    return
-        threads = [threading.Thread(
-            target=listen, name=f'listen_{iface}', args=(sc,)) for iface, sc in self.sockets.items()]
-        for thread in threads:
-            if background:
-                thread.daemon = True
-            thread.start()
-        if return_threads:
-            return threads
+    def local_addrs(self):
+        #return list(self.__interfaces_for_addr.values())
+        return self.__interfaces_for_addr.values()
 
-class Broadcaster:
-    def __init__(self, msg, interfaces=None, msg_send_callback=None, broadcast_port=None,
-                                    broadcast_time=None, broadcast_sleep=30, logger=None):
-        self.UDP_IP = '<broadcast>'
-        self.UDP_PORT = broadcast_port if broadcast_port else 37020
-        self.interfaces = interfaces if interfaces else ['']
-        self.BROADCAST_TIME = broadcast_time
-        self.BROADCAST_SLEEP = broadcast_sleep
-        self.msg = msg
-        self.msg_send_callback = msg_send_callback if msg_send_callback else lambda: True
-        self.logger = logger if logger else create_logger('broadcast-logger')
-        self.sockets = {x: self.__create_socket__(x) for x in self.interfaces}
 
-    def __create_socket__(self, iface):
+    def is_local_addr(self, addr):
+        return addr in self.local_addrs()
+
+    def __get_broadcast_socket(self, addr):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         sock.settimeout(0.2)
         sock.setblocking(0)
-        sock.bind((netifaces.ifaddresses(iface)[netifaces.AF_INET][0]['addr'], 1234))
+        sock.bind((addr, self.__port))
         return sock
 
-    def run(self, return_threads=False, background=False):
-        def broadcast(sock):
-            timeout = (time.time() + self.BROADCAST_TIME) if self.BROADCAST_TIME else False
-            while True:
-                if self.msg_send_callback():
-                    sock.sendto(self.msg.make(), (self.UDP_IP, self.UDP_PORT))
-                time.sleep(self.BROADCAST_SLEEP)
-                if timeout and time.time() > timeout:
-                    break
-        threads = [threading.Thread(target=broadcast, name=f'broadcast_{iface}', args=(socket,)) for iface, socket in self.sockets.items()]
-        for thread in threads:
-            if background:
-                thread.daemon = True
-            thread.start()
-        if return_threads:
-            return threads
+    def __get_listen_socket(self, iface):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        sock.setblocking(0)
+        sock.settimeout(None)
+        sock.bind(('', self.__port))
+        return sock
+
+    def send_broadcast(self, msg):
+         for socket in self.__broadcast_sockets:
+            socket.sendto(msg, ('<broadcast>', self.__port))
+
+    def __listener(self, sock, handler):
+        while True:
+            data, (addr, _) = sock.recvfrom(4096)
+            handler(data, addr)
+
+    def set_listen(self, handler):
+        return [threading.Thread(target=self.__listener, args=(sock, handler)) for sock in self.__listening_sockets]
 
 class Node:
     CONF_PATH = 'config.yml'
@@ -113,28 +87,21 @@ class Node:
         cfg = yaml.load(open(config, 'r'), Loader=yaml.Loader)
         self.side = cfg.get('side', 'good')
         self.name = cfg['name']
-        self.network = cfg['networks']
-        self.broadcast_port = cfg.get('broadcast_port', 37020)
-        self.interface_pattern = cfg.get('interface_pattern', 'eth')
-        self.ip_addr = socket.gethostbyname(socket.gethostname())
+        self.net_worker = NetWorker(
+            port=cfg.get('broadcast_port', 37020),
+        )
         self.logger = create_logger(f'{self.name}.log', threads=False)
         # https://networkx.github.io/documentation/stable/reference/drawing.html
-        visualize_mode = cfg.get('visualize_mode')
-        if visualize_mode:
-            visualize_mode = f'draw_{visualize_mode}'
-        else:
-            visualize_mode = 'draw'
+        visualize_mode = f"draw_{cfg.get('visualize_mode')}" if cfg.get('visualize_mode') else 'draw'
         try:
             self.visualize_method = getattr(nx, visualize_mode)
         except AttributeError:
             self.visualize_method = nx.draw
-        self.local_interfaces = {x: netifaces.ifaddresses(x)[netifaces.AF_INET][0]['addr'] for x in [i for i in netifaces.interfaces() if self.interface_pattern in i]}
         self.network_graph = nx.Graph()
-        self.network_graph.add_node(self.name, addr=self.local_interfaces.values())
+        self.network_graph.add_node(self.name, addr=self.net_worker.local_addrs())
         self.neighbor_table = []
         self.mpr_set = []
         self.lock = threading.RLock()
-        self.update_topology()
 
     def get_neighbors(self, node=None, dist=1):
         if not node:
@@ -150,15 +117,15 @@ class Node:
             return False
         return True
 
-    def get_notwork_info(self):
+    def get_network_info(self):
         return f'{self.network_graph.edges()}\n{self.network_graph.nodes().data()}'
 
-    def __update_topology__(self, data, addr):
+    def process_msg(self, data, addr):
         # Ignore self messages
-        if addr in self.local_interfaces.values():
+        if self.net_worker.is_local_addr(addr):
             return
         with self.lock:
-            m = message.MessageHandler().unpack(data)
+            m = message.Message.unpack(data)
             if m.message_type == 'HELLO':
                 # add node and edge
                 self.network_graph.add_node(m.sender, addr=[addr])
@@ -170,14 +137,8 @@ class Node:
                     self.network_graph.add_edge(m.sender, nbr['name'])
             elif m.message_type == 'TC':
                 if m.sender in self.get_neighbors(dist=None):
-                    # mark as MPR (somebody's MBR, nonlocal)
-                    self.network_graph.add_node(m.sender, mpr=True)
-                    for nbr in m.mpr_set:
-                        # print(f"Adding {nbr['name']}")
-                        self.network_graph.add_edge(m.sender, nbr['name'])
-                if self.is_am_MPR():
-                    Broadcaster(m, self.local_interfaces.keys(),
-                    broadcast_port=self.broadcast_port, broadcast_time=5, logger=self.logger).run()
+                    self.parse_tc(m)
+                self.send_tc(forwarded_msg=m)
             elif m.message_type == 'CUSTOM':
                 if m.dest == self.name:
                     self.logger.info(f'Got CUSTOM message from {m.sender}: {m.msg}; path: {m.forwarders}')
@@ -186,41 +147,37 @@ class Node:
                     except Exception as e:
                         self.logger.error(f'{e}\n{self.network_graph}')
                 else:
-                    if self.is_am_MPR() and self.is_am_in_route(m):
+                    if self.is_am_MPR() and self.is_on_route(m):
                         if m.sender != self.name:
                             if self.side == 'good':
                                 if self.name not in m.forwarders:
                                     self.logger.info(f'I am MPR for {self.get_by("mprss")}. My MPRS: {self.get_by("mpr")}. I got msg from {m.sender} to {m.dest}. Its prev path: {m.forwarders}. Forwarding...')
                                     m.forwarders.append(self.name)
-                                    Broadcaster(m, self.local_interfaces.keys(),
-                                    broadcast_port=self.broadcast_port, broadcast_time=1, logger=self.logger).run()
+                                    self.net_worker.send_broadcast(m)
                             elif self.side == 'evil':
                                 self.logger.info(f'I got msg from {m.sender} to {m.dest}. Its prev path: {m.forwarders}. Dropping...')
             self.update_neighbors()
             self.update_MPRs()
             self.update_MPR_set()
 
-    def is_am_in_route(self, msg):
-        return True
+    def is_on_route(self, msg):
         full_route = self.get_route(msg.dest, msg.forwarders[-1])
+        return self.name in full_route and self.name not in msg.forwarders
 
-    def update_topology(self):
-        Broadcaster(
-            message.MessageHandler().hello_message(self.name, self.neighbor_table),
-            interfaces=self.local_interfaces.keys(),
-            broadcast_port=self.broadcast_port,
-            logger=self.logger).run(True)
-        Listerner(
-            self.local_interfaces.keys(),
-            self.broadcast_port,
-            logger=self.logger,
-            handler=self.__update_topology__).run(True)
-        Broadcaster(
-            message.MessageHandler().tc_message(self.name, self.mpr_set),
-            interfaces=self.local_interfaces.keys(),
-            msg_send_callback=self.is_am_MPR,
-            broadcast_port=self.broadcast_port,
-            logger=self.logger).run()
+    def parse_tc(self, msg):
+        # mark as MPR (somebody's MBR, nonlocal)
+        self.network_graph.add_node(msg.sender, mpr=True)
+        for nbr in msg.mpr_set:
+            # Node is in graph and has other MPR or didn't choose previously
+            if nbr['name'] in self.network_graph and self.get_data(nbr['name']).get('choosen_mpr') != msg.sender:
+                # It had other MPR
+                if self.get_data(nbr['name']).get('choosen_mpr'):
+                    old_nbr_mpr = self.get_data(nbr['name']).get('choosen_mpr')
+                    # Unset it as MPR in our ghraph
+                    if old_nbr_mpr in self.network_graph:
+                        self.network_graph.nodes()[old_nbr_mpr]['mpr'] = False
+                self.network_graph.add_node(nbr['name'], choosen_mpr=msg.sender)
+            self.network_graph.add_edge(msg.sender, nbr['name'])
 
     def visualize_network(self, with_mpr=False, image_postfix=None):
         plt.clf()
@@ -290,7 +247,6 @@ class Node:
                 })
 
     def update_MPRs(self):
-        self.update_neighbors()
         any_in = lambda a, b: any(i in b for i in a)
 
         nodes_1 = self.get_neighbors()
@@ -333,16 +289,26 @@ class Node:
             return []
         return nx.shortest_path(self.network_graph, src_node, dest_node)
 
+    def send_hello(self):
+        msg =  message.Message.from_type(
+                    'HELLO', sender=self.name, neighbor_table=self.neighbor_table)
+        self.net_worker.send_broadcast(msg.pack())
+
+    def send_tc(self, forwarded_msg=None):
+        if forwarded_msg:
+            tc_message = forwarded_msg
+        else:
+            tc_message = message.Message.from_type(
+                'TC', sender=self.name, mpr_set=self.mpr_set)
+        if self.is_am_MPR():
+            self.net_worker.send_broadcast(tc_message.pack())
+
     def send_message(self, msg, dest_node):
         path = self.get_route(dest_node)
         self.logger.info(f'Sending "{msg}" to {dest_node}. Expected path: {path}')
-        Broadcaster(
-            message.MessageHandler().custom_message(self.name, dest_node, msg),
-            self.local_interfaces.keys(),
-            broadcast_port=self.broadcast_port,
-            broadcast_time=5,
-            logger=self.logger,
-        ).run(background=True)
+        self.net_worker.send_broadcast(
+            message.Message.from_type(
+                'CUSTOM', sender=self.name, dest=dest_node, msg=msg).pack())
 
 def test_path(node, visualize=False):
     dist = 5
@@ -355,6 +321,75 @@ def test_path(node, visualize=False):
     if visualize:
         node.visualize_route(route)
 
+class NodeWorker:
+    """
+    Spanw threads for Node object
+    In a charge for timers
+    """
+
+    THREADS = []
+    SLEEPS = {
+        'main': 60,
+        'visualize': 20,
+        'workload': 120,
+        'casts': 5
+    }
+
+    @classmethod
+    def run(cls, node):
+        cls.add_thread(cls.visualize, node)
+        cls.add_thread(cls.workload, node)
+        cls.add_thread(cls.cast_hello, node)
+        cls.add_thread(cls.listen, node)
+        cls.add_thread(cls.cast_tc, node)
+
+        [t.start() for t in cls.THREADS]
+        while True:
+            time.sleep(cls.SLEEPS['main'])
+
+    @classmethod
+    def add_thread(cls, t, n):
+        cls.THREADS.append(threading.Thread(target=t, args=(n,)))
+
+    @classmethod
+    def visualize(cls, node):
+        node.logger.info("Vizualization thread")
+        while(True):
+            time.sleep(cls.SLEEPS['visualize'])
+            node.visualize_network(with_mpr=True)
+
+    @classmethod
+    def workload(cls, node):
+        while True:
+            if node.name == 'nw7-n1':
+                if 'nw5-n1' in node.get_neighbors(dist=None):
+                    node.logger.info(f"Route: {node.get_route('nw5-n1')}")
+                    node.send_message(f'Hello, X-hop friend!', 'nw5-n1')
+                    break
+                else:
+                    node.logger.info("Node nw5-n1' not known")
+            else:
+                break
+            time.sleep(cls.SLEEPS['workload'])
+
+    @classmethod
+    def cast_hello(cls, node):
+        while True:
+            node.send_hello()
+            time.sleep(cls.SLEEPS['casts'])
+
+    @classmethod
+    def listen(cls, node):
+        l_threads = node.net_worker.set_listen(node.process_msg)
+        [l.start() for l in l_threads]
+        # They're infinite
+        [l.join() for l in l_threads]
+
+    @classmethod
+    def cast_tc(cls, node):
+        while True:
+            node.send_tc()
+            time.sleep(cls.SLEEPS['casts'])
 
 if __name__ == '__main__':
 
@@ -366,21 +401,4 @@ if __name__ == '__main__':
         node = Node(sys.argv[1])
     else:
         node = Node()
-
-    node.logger.info("Spanw endless vizualization thread")
-    def viz_wl():
-        while(True):
-            time.sleep(30)
-            node.visualize_network(with_mpr=True)
-    th = threading.Thread(target=viz_wl)
-    th.daemon = True
-    th.start()
-
-    while(True):
-        time.sleep(30)
-        if node.name == 'nw7-n1':
-            if 'nw5-n1' in node.get_neighbors(dist=None):
-                node.logger.info(f"Route: {node.get_route('nw5-n1')}")
-                node.send_message(f'Hello, X-hop friend!', 'nw5-n1')
-            else:
-                node.logger.info("Node nw5-n1' not known")
+    NodeWorker.run(node)

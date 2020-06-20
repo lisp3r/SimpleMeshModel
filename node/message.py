@@ -24,8 +24,12 @@ class Message:
     def to_json(self):
         return json.dumps(self.__dict__)
 
-    def make(self):
+    def pack(self):
         return pickle.dumps(self)
+
+    @staticmethod
+    def unpack(message):
+        return pickle.loads(message)
 
 class HelloMessage(Message):
     def __init__(self, sender, neighbor_table, addr=None):
@@ -58,19 +62,3 @@ class CustomMessage(Message):
 
     def __str__(self):
         return self.msg
-
-class MessageHandler:
-    def __pack__(self, message_type, **args):
-        return pickle.dumps(Message().from_type(message_type, **args))
-
-    def unpack(self, message):
-        return pickle.loads(message)
-
-    def hello_message(self, sender, neighbor_table, addr=None):
-        return Message().from_type('HELLO', sender=sender, neighbor_table=neighbor_table, addr=addr)
-
-    def tc_message(self, sender, mpr_set, addr=None):
-        return Message().from_type('TC', sender=sender, mpr_set=mpr_set, addr=addr)
-
-    def custom_message(self, sender, dest, msg, addr=None):
-        return Message().from_type('CUSTOM', sender=sender, dest=dest, msg=msg, addr=addr)

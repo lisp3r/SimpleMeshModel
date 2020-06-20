@@ -143,10 +143,10 @@ plt.axis('off')
 networkx.draw(
     G,
     pos = networkx.nx_pydot.graphviz_layout(G),
-    node_size=100,
+    node_size=150,
     node_color='lightblue',
     linewidths=1,
-    font_size=8,
+    font_size=10,
     font_weight='bold', with_labels=True)
 # networkx.draw_spring(G, with_labels=True)
 image_name = os.path.join(swd, 'network-graph.png')

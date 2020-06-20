@@ -4,3 +4,5 @@ networkx
 matplotlib
 # For beautiful graphs
 scipy
+# For autogen
+pydot

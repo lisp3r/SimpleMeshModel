@@ -111,6 +111,7 @@ class Node:
 
     def __init__(self, config=CONF_PATH):
         cfg = yaml.load(open(config, 'r'), Loader=yaml.Loader)
+        self.side = cfg['side']
         self.name = cfg['name']
         self.network = cfg['networks']
         self.broadcast_port = cfg.get('broadcast_port', 37020)
@@ -190,7 +191,7 @@ class Node:
                     else:
                         if self.is_am_MPR():
                             if m.sender != self.name:
-                                # self.logger.info(f'I am an MPR for {self.get_by("mprss")}. I got msg from {m.sender} to {m.dest}. Its prev path: {m.forwarders}. Forwarding...')
+                                self.logger.info(f'I got msg from {m.sender} to {m.dest}. Its prev path: {m.forwarders}. Forwarding...')
                                 m.forwarders.append(self.name)
                                 Broadcaster(m, self.local_interfaces.keys(),
                                 broadcast_port=self.broadcast_port, broadcast_time=1, logger=self.logger).run()
@@ -270,9 +271,9 @@ class Node:
         for nbr in list(self.network_graph.neighbors(self.name)): 
             self.neighbor_table.append({ 
                 'name': nbr,
-                'addr': self.network_graph.nodes().data()[nbr]['addr'], # self.get_data(nbr)['addr']
-                'local_mpr': True if self.network_graph.nodes().data()[nbr].get('local_mpr') else False,
-                'mprss': True if self.network_graph.nodes().data()[nbr].get('mprss') else False
+                'addr': self.get_data(nbr)['addr'],
+                'local_mpr': True if self.get_data(nbr).get('local_mpr') else False,
+                'mprss': True if self.get_data(nbr).get('mprss') else False
             })
 
     def update_MPR_set(self):
@@ -372,72 +373,74 @@ def test_path(node, visualize=False):
         node.visualize_route(route)
 
 
-if len(sys.argv) > 2:
-    print('Usage: python node.py [config]')
-    exit(1)
+if __name__ == '__main__':
 
-if len(sys.argv) == 2:
-    node = Node(sys.argv[1])
-else:
-    node = Node()
+    if len(sys.argv) > 2:
+        print('Usage: python node.py [config]')
+        exit(1)
 
-# time.sleep(20)
-# node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
-# time.sleep(20)
-# node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
-# time.sleep(20)
-# node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
-# node.visualize_network(with_mpr=True)
+    if len(sys.argv) == 2:
+        node = Node(sys.argv[1])
+    else:
+        node = Node()
 
-# lvl = 5
-# n = node.get_neighbors(dist=lvl)
-# if not n:
-#     while not n:
-#         lvl = lvl-1
-#         n = node.get_neighbors(dist=lvl)
+    # time.sleep(20)
+    # node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
+    # time.sleep(20)
+    # node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
+    # time.sleep(20)
+    # node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
+    # node.visualize_network(with_mpr=True)
 
-# node.send_message('Hello, friend!', n[randint(0, len(n))])
+    # lvl = 5
+    # n = node.get_neighbors(dist=lvl)
+    # if not n:
+    #     while not n:
+    #         lvl = lvl-1
+    #         n = node.get_neighbors(dist=lvl)
 
-time.sleep(120)
-node.visualize_network(with_mpr=True)
-# node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
-# node.logger.info(nx.single_source_shortest_path_length(node.network_graph, None, cutoff=3))
+    # node.send_message('Hello, friend!', n[randint(0, len(n))])
 
-# node.logger.info(f'All nbrs: {nx.single_source_shortest_path_length(node.network_graph, node.name)}')
+    time.sleep(120)
+    node.visualize_network(with_mpr=True)
+    # node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
+    # node.logger.info(nx.single_source_shortest_path_length(node.network_graph, None, cutoff=3))
 
-dist=4
-lvl=None
-while not lvl:
-    lvl = node.get_neighbors(dist=dist)
-    dist = dist-1
-node.send_message(f'Hello, {dist+1}-hop friend!', choice(lvl))
+    # node.logger.info(f'All nbrs: {nx.single_source_shortest_path_length(node.network_graph, node.name)}')
 
-exit(0)
-# node.visualize_network(with_mpr=True, image_postfix=cycle_idx)
+    dist=4
+    lvl=None
+    while not lvl:
+        lvl = node.get_neighbors(dist=dist)
+        dist = dist-1
+    node.send_message(f'Hello, {dist+1}-hop friend!', choice(lvl))
 
-# cycle_idx = 0
-# while True:
-#     time.sleep(5)
-#     node.visualize_network(with_mpr=True, image_postfix=cycle_idx)
-#     node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
-#     cycle_idx += 1
+    exit(0)
+    # node.visualize_network(with_mpr=True, image_postfix=cycle_idx)
 
-# # node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
+    # cycle_idx = 0
+    # while True:
+    #     time.sleep(5)
+    #     node.visualize_network(with_mpr=True, image_postfix=cycle_idx)
+    #     node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
+    #     cycle_idx += 1
 
-# # node.visualize_network()
-# node.update_topology(3,3)
-# # node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
-# node.update_topology(5,5)
-# # node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
-# node.update_topology(5,5)
-# # node.update_topology(5,5)
-# node.visualize_network(with_mpr=True)
+    # # node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
 
-# node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
-# node.logger.info(f'MPR list: {node.get_by("local_mpr")},
-#                       MPR selector set: {node.get_by("mprss")}')
-# node.logger.info(node.get_notwork_info())
+    # # node.visualize_network()
+    # node.update_topology(3,3)
+    # # node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
+    # node.update_topology(5,5)
+    # # node.logger.info(f'MPR list: {node.get_by("mpr")}, MPR selector set: {node.get_by("mprss")}')
+    # node.update_topology(5,5)
+    # # node.update_topology(5,5)
+    # node.visualize_network(with_mpr=True)
 
-# test_path(node, True)
-# test_path(node)
-# test_path(node)
+    # node.logger.info(f'Network graph: {node.network_graph.nodes().data()}\n')
+    # node.logger.info(f'MPR list: {node.get_by("local_mpr")},
+    #                       MPR selector set: {node.get_by("mprss")}')
+    # node.logger.info(node.get_notwork_info())
+
+    # test_path(node, True)
+    # test_path(node)
+    # test_path(node)

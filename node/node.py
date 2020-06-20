@@ -153,10 +153,9 @@ class Node:
                     if self.__is_mpr() and self.__is_on_route(m):
                         if m.sender != self.name:
                             if self.side == 'good':
-                                if self.name not in m.forwarders:
-                                    self.logger.info(f'I am MPR for {self.__get_by("mprss")}. My MPRS: {self.__get_by("mpr")}. I got msg from {m.sender} to {m.dest}. Its prev path: {m.forwarders}. Forwarding...')
-                                    m.forwarders.append(self.name)
-                                    self.net_worker.send_broadcast(m)
+                                self.logger.info(f'I am MPR for {self.__get_by("mprss")}. My MPRS: {self.__get_by("mpr")}. I got msg from {m.sender} to {m.dest}. Its prev path: {m.forwarders}. Forwarding...')
+                                m.forwarders.append(self.name)
+                                self.net_worker.send_broadcast(m.pack())
                             elif self.side == 'evil':
                                 self.logger.info(f'I got msg from {m.sender} to {m.dest}. Its prev path: {m.forwarders}. Dropping...')
             self.__update_mprs()

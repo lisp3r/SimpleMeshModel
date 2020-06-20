@@ -11,7 +11,7 @@ import copy
 # * информация о соединении абонента с одношаговыми соседями.
 
 class Message:
-    MESSAGE_TYPES = ['HELLO', 'TC', 'CUSTOM']
+    MESSAGE_TYPES = ['HELLO', 'TC', 'CUSTOM', 'ALERT']
 
     @classmethod
     def from_type(cls, message_type, **args):

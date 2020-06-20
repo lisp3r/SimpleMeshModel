@@ -191,10 +191,14 @@ class Node:
                     else:
                         if self.is_am_MPR():
                             if m.sender != self.name:
-                                self.logger.info(f'I got msg from {m.sender} to {m.dest}. Its prev path: {m.forwarders}. Forwarding...')
-                                m.forwarders.append(self.name)
-                                Broadcaster(m, self.local_interfaces.keys(),
-                                broadcast_port=self.broadcast_port, broadcast_time=1, logger=self.logger).run()
+                                if self.side == 'good':
+                                    if self.name not in m.forwarders:
+                                        self.logger.info(f'I got msg from {m.sender} to {m.dest}. Its prev path: {m.forwarders}. Forwarding...')
+                                        m.forwarders.append(self.name)
+                                        Broadcaster(m, self.local_interfaces.keys(),
+                                        broadcast_port=self.broadcast_port, broadcast_time=1, logger=self.logger).run()
+                                elif self.side == 'evil':
+                                    self.logger.info(f'I got msg from {m.sender} to {m.dest}. Its prev path: {m.forwarders}. Dropping...')
             self.update_neighbors()
             self.update_MPRs()
             self.update_MPR_set()

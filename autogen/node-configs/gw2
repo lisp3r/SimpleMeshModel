@@ -1,9 +1,9 @@
-name: {{ name }}
-side: good
+name: gw2
 networks:
-{%- for n in networks %}
-  - {{ n }}
-{%- endfor %}
+  - network0
+  - network8
+  - network5
+  - network1
 #visualize_mode: kamada_kawai
 visualize_mode: spring
 #visualize_mode: spectral

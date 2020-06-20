@@ -1,9 +1,6 @@
-name: {{ name }}
-side: good
+name: nw1-n1
 networks:
-{%- for n in networks %}
-  - {{ n }}
-{%- endfor %}
+  - network1
 #visualize_mode: kamada_kawai
 visualize_mode: spring
 #visualize_mode: spectral

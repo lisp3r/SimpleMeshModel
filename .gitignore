@@ -1,5 +1,6 @@
 __pycache__
 autogen/node-configs
 autogen/docker-compose.yml
+autogen/network-graph.png
 docker-compose.yml
 artifacts

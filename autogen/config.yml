@@ -1,6 +1,8 @@
 # Count of networks to generate
-networks count: 5
-# Maximum % on networks node can be joint
-connectivity: 0.4
-# Count of nodes to generats
-nodes count: 15
+networks count: 10
+# Number of pure clients per network
+network peers: 2
+# Max number of gateways in network (min is 1)
+max gateways: 1
+# Max other networks connected to one's gateway
+max gateway connectivity: 3

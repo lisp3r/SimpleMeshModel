@@ -139,10 +139,11 @@ class Node:
     def get_neighbors(self, node=None, dist=1):
         if not node:
             node = self.name
-        return [
-            x for x in nx.single_source_shortest_path_length(self.network_graph, node, cutoff=dist) 
-            if nx.single_source_shortest_path_length(self.network_graph, node, cutoff=dist)[x] == dist
-        ]
+        all_nbrs = nx.single_source_shortest_path_length(self.network_graph, node, cutoff=dist)
+        if dist:
+            return [node for node,ndist in all_nbrs.items() if ndist == dist]
+        else:
+            return list(all_nbrs.keys())
 
     def is_am_MPR(self):
         if not self.get_by('mprss'):
@@ -168,7 +169,7 @@ class Node:
                         self.network_graph.add_node(m.sender, addr=[addr], mprss=True)
                     self.network_graph.add_edge(m.sender, nbr['name'])
             elif m.message_type == 'TC':
-                if m.sender in self.get_neighbors(dist=2):
+                if m.sender in self.get_neighbors(dist=None):
                     # mark as MPR (somebody's MBR, nonlocal)
                     self.network_graph.add_node(m.sender, mpr=True)
                     for nbr in m.mpr_set:

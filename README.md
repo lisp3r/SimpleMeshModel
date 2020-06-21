@@ -33,3 +33,92 @@ Repository structure:
 2. Узел выбирает список MPR-узлов, таких, что через эти узлы можно достичь любого узла, находящегося в двух шагах от данного.
 3. Узел посылает каждому такому узлу сообщение вида "я выбрал тебя своим MBR"
 4. Узлы MBR транслируют TC-сообщение, которое содержит 
+
+## Описание
+
+Эксперимент производится на сети данного вида: <картинка сети>
+Он заключается в том, выбранный заранее узел настроент так, чтобы периодически посылать пакеты кому-то из изветных узлов на графе:
+```
+<...>
+while True:
+    time.sleep(cls.SLEEPS['workload'])
+    if node.name in ['nw7-n1', 'nw4-n1']:
+        target_node = choice(node.get_neighbors(dist=None))
+        node.send_custom(f'Hello from {node.name}, X-hop friend!', target_node)
+    else:
+        break
+<...>
+```
+Во время этой пересылки сообщений, согласно заявленному алгоритму маршрутизации, будет использован MPR gw17 для передачи сообщение соседям:
+```
+nw7-n1    | Sending "Hello from nw7-n1, X-hop friend!" to nw8-n1. Expected path: ['nw7-n1', 'gw17', 'gw24', 'gw2', 'nw8-n1']
+```
+[nw7-n1->nw8-n1.png]
+
+Согласно протоколу сеть нашла устойчивую конфигрурацю (с точки зрения gw17):
+[gw17.png]
+красным отмечены MPR узла, жёлтым - MPRSS, зелёным - другие MPR, от которых получены сообщения TC
+
+Эксперимент заключается в изменении поведения gw17 на зловредное: он начинает не пропускать сообщения через себя путем изменения конфигурации ноды на лету. По начальной схеме сети видно что был предусмотрен обходной шлюз gw18. В настоящих mesh маршрутов и связей намного больше, но в таких топологиях эксперимент теряет наглядность.
+
+Так как будет рассмотрено поведение узла nw7-n1, то приведём его карту сети:
+[nw7-n1.png]
+
+Дело в том, что gw17 является его единственным MPR и топология сети для него изменится коренным образом при изменении поведения gw17. При включении режима "глушения" пакетов, nw7-n1 может заметить что сообщения, которые предполагаются идти через этот MPR, не видно в эфире. Для этого он регистрирует все посланные сообщения:
+```
+<...>
+msg = message.Message.from_type(
+        'CUSTOM', sender=self.name, dest=dest_node, msg=msg)
+self.net_worker.send_broadcast(msg.pack())
+# IPS: register sent custom messages what has to be forwarded
+if dest_node not in list(self.network_graph.neighbors(self.name)):
+    self.__sent_msgs.append(msg)
+```
+Поток дежурной обработки сообщений регистриует широковещательные повторы и убирает сообщение из списка:
+```
+def recv_custom(self, m):
+    <...>
+    elif m.sender == self.name:
+        <...>
+        if is_from_my_mpr:
+            <...>
+                self.__sent_msgs.remove(del_msg)
+                self.ips.change_rating(msg_translator, +1)
+```
+А отдельный поток анализа периодически проверяет сообщения в пуле отправленных:
+```
+def ips_update(self):
+    <...>
+        # Increase clock for messages
+        for msg in self.__sent_msgs:
+            age = msg.tick()
+            if age >= 2:
+                <...>
+                self.ips.change_rating(path[1], -2)
+```
+И если сообщение отправлено достаточно давно, то есть повод думать что нода ведёт себя неверно. При включении режима отбрасывания сообщений, в логах ноды nw7-n1 стали появляться соответствующие сообщения:
+```
+nw7-n1    | Sending "Hello from nw7-n1, X-hop friend!" to nw8-n0. Expected path: ['nw7-n1', 'gw17', 'gw24', 'gw2', 'nw8-n0']
+gw17      | Got msg nw7-n1->nw8-n0, it passed: ['nw7-n1']. Dropping...
+nw7-n1    | IPS: Decrease rating for gw17, message for nw3-n1 wasn't forwarded
+...
+nw7-n1    | Sending "Hello from nw7-n1, X-hop friend!" to nw3-n1. Expected path: ['nw7-n1', 'gw17', 'gw24', 'gw7', 'nw3-n1']
+gw17      | Got msg nw7-n1->nw3-n1, it passed: ['nw7-n1']. Dropping...
+```
+А после накопления ей достаточного рейтинга, gw17 была исключена из дерева узла и узел сообщил об этом дальше в сеть:
+```
+nw7-n1    | IPS: Decrease rating for gw17, message for nw6-n0 wasn't forwarded
+nw7-n1    | 01:34:06 - [Thread-6] - WARNING - Isolating gw17 because of low rating
+gw18      | Remove isolated node gw17 from HELLO from nw7-n1
+gw18      | 01:34:06 - [Thread-4] - WARNING - Isolating gw17 because of low rating
+gw12      | Remove isolated node gw17 from HELLO from nw7-n1
+nw7-n0    | Remove isolated node gw17 from HELLO from nw7-n1
+nw7-n0    | 01:34:06 - [Thread-4] - WARNING - Isolating gw17 because of low rating
+gw12      | 01:34:06 - [Thread-4] - WARNING - Isolating gw17 because of low rating
+gw17      | Got msg nw7-n1->nw9-n0, it passed: ['nw7-n1']. Dropping...
+gw12      | WARNING:root:Ignore message from gw17 as it's isolated
+gw18      | WARNING:root:Ignore message from gw17 as it's isolated
+nw7-n1    | WARNING:root:Ignore message from gw17 as it's isolated
+nw7-n0    | WARNING:root:Ignore message from gw17 as it's isolated
+```
+В результате данный узел был исключен из цепи передачи и граф сети с точки зрения nw7-n1 стал выглядеть следующим образом:

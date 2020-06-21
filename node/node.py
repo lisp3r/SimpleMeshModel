@@ -132,7 +132,7 @@ class Node:
                             self.logger.error("They found me!")
                         else:
                             if nbr['name'] in self.network_graph.nodes():
-                                self.logger.warning(f"Remove isolated node {nbr['name']} from HELLO from f{m.sender}")
+                                self.logger.warning(f"Remove isolated node {nbr['name']} from HELLO from {m.sender}")
                                 self.ips.change_rating(nbr['name'], self.ips.rating_to_isolate)
                                 with self.glock:
                                     self.network_graph.remove_node(nbr['name'])
@@ -144,6 +144,8 @@ class Node:
                                     self.network_graph.add_node(m.sender, addr=[addr], mprss=True)
                                 else:
                                     self.network_graph.add_node(m.sender, addr=[addr], mprss=False)
+                            else:
+                                self.network_graph.add_node(m.sender, addr=[addr], mpr=nbr.get('local_mpr', False))
                             self.network_graph.add_edge(m.sender, nbr['name'])
             elif m.message_type == 'TC':
                 if m.sender in self.get_neighbors(dist=None):
@@ -171,7 +173,7 @@ class Node:
                     if old_nbr_mpr and old_nbr_mpr != msg.sender:
                         # Unset it as MPR in our ghraph
                         if old_nbr_mpr in self.network_graph:
-                            self.network_graph.nodes()[old_nbr_mpr]['mpr'] = False
+                            self.network_graph.add_node(old_nbr_mpr, mpr=False)
                     self.network_graph.add_node(nbr['name'], local_mpr=msg.sender)
                 self.network_graph.add_edge(msg.sender, nbr['name'])
 
@@ -283,7 +285,11 @@ class Node:
     def send_tc(self, forwarded_msg=None):
         with self.rlock:
             if forwarded_msg:
-                tc_message = forwarded_msg
+                if self.name not in forwarded_msg.route:
+                    forwarded_msg.route.append(self.name)
+                    tc_message = forwarded_msg
+                else:
+                    return
             else:
                 tc_message = message.Message.from_type(
                     'TC', sender=self.name, mpr_set=self.mpr_set)
@@ -306,7 +312,7 @@ class Node:
     def recv_custom(self, m):
         if m.dest == self.name:
             self.logger.info(f'Got CUSTOM message from {m.sender}: {m.msg}; path: {m.forwarders}')
-            self.__visualize_route(m.forwarders)
+            self.__visualize_route(m.forwarders + [self.name])
         elif m.sender == self.name:
             self.logger.warning("IPS: received from MPR self custom messages means this MPR is OK")
             msg_translator = m.forwarders[-1]
@@ -360,9 +366,9 @@ class IPS:
         # IPS: List of isolated nodes
         self.__isolated_nodes = []
         # Limit node rating
-        self.__max_node_rating = 15
+        self.__max_node_rating = 10
         # Rating to isolate node
-        self.rating_to_isolate = -2
+        self.rating_to_isolate = -10
         self.logger = create_logger('IPS')
 
     # IPS: drop rating only for non-isolated nodes, inc only if it allowed
@@ -434,9 +440,9 @@ class NodeWorker:
         node.logger.info("Workload started")
         while True:
             time.sleep(cls.SLEEPS['workload'])
-            if node.name == 'nw7-n1':
+            if node.name in ['nw7-n1']:
                 target_node = choice(node.get_neighbors(dist=None))
-                node.send_custom(f'Hello, X-hop friend!', target_node)
+                node.send_custom(f'Hello from {node.name}, X-hop friend!', target_node)
             else:
                 break
         node.logger.info("Workload end")

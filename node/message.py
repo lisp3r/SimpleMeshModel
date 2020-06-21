@@ -47,6 +47,7 @@ class TcMessage(Message):
         self.sender = sender
         self.addr = addr
         self.mpr_set = mpr_set
+        self.route = [self.sender]
 
     def __str__(self):
         return f'TYPE: {self.message_type}; SENDER: {self.sender}; MPR SET: {self.mpr_set}'

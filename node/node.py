@@ -145,7 +145,7 @@ class Node:
                                 else:
                                     self.network_graph.add_node(m.sender, addr=[addr], mprss=False)
                             else:
-                                self.network_graph.add_node(m.sender, addr=[addr], mpr=nbr.get('local_mpr', False))
+                                self.network_graph.add_node(nbr['name'], addr=[addr], mpr=nbr.get('local_mpr', False))
                             self.network_graph.add_edge(m.sender, nbr['name'])
             elif m.message_type == 'TC':
                 if m.sender in self.get_neighbors(dist=None):

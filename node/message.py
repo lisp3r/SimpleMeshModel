@@ -59,6 +59,17 @@ class CustomMessage(Message):
         self.dest = dest
         self.msg = msg
         self.forwarders=[sender]
+        # IPS: Clock parameter maintanied in message on sender
+        # This may be detected on attacker side
+        self.__clock = 0
+
+    # IPS: Method for IPS to track message age
+    def tick(self):
+        self.__clock += 1
+        return self.__clock
 
     def __str__(self):
         return self.msg
+
+    def __eq__(self, other):
+        return (self.sender == other.sender) and (self.addr == other.addr) and (self.dest == other.dest) and (self.msg == other.msg)

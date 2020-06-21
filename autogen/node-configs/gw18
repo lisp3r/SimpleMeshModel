@@ -1,0 +1,5 @@
+name: gw18
+networks:
+  - network6
+  - network7
+visualize_mode: spring

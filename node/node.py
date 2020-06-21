@@ -11,6 +11,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from copy import copy
 from random import choice, randint
+from collections import defaultdict
 
 
 def create_logger(logger_name, threads=True):
@@ -70,7 +71,7 @@ class Node:
 
     def __init__(self, config=CONF_PATH):
         cfg = yaml.load(open(config, 'r'), Loader=yaml.Loader)
-        self.side = cfg.get('side', 'good')
+        self.__config = config
         self.name = cfg['name']
         self.net_worker = NetWorker(
             port=cfg.get('broadcast_port', 37020),
@@ -85,7 +86,16 @@ class Node:
         self.network_graph = nx.Graph()
         self.network_graph.add_node(self.name, addr=self.net_worker.local_addrs())
         self.mpr_set = []
-        self.lock = threading.RLock()
+        # IPS: object to integrate security
+        self.ips = IPS()
+        # IPS: Non-confirmed sent messages and time passed since sending
+        self.__sent_msgs = []
+        self.rlock = threading.RLock()
+        self.glock = threading.Lock()
+
+    def __get_side(self):
+        cfg = yaml.load(open(self.__config, 'r'), Loader=yaml.Loader)
+        return cfg.get('side', 'good')
 
     def get_neighbors(self, node=None, dist=1):
         if not node:
@@ -103,41 +113,44 @@ class Node:
             return False
 
     def process_msg(self, data, addr):
-        # Ignore self messages
         if self.net_worker.is_local_addr(addr):
             return
-        with self.lock:
-            m = message.Message.unpack(data)
+        m = message.Message.unpack(data)
+        # IPS: injection in message processing
+        if self.ips.is_isolated(m.sender):
+            logging.warning(f"Ignore message from {m.sender} as it's isolated")
+            return
+        with self.rlock:
             if m.message_type == 'HELLO':
-                self.network_graph.add_node(m.sender, addr=[addr])
-                self.network_graph.add_edge(self.name, m.sender)
+                with self.glock:
+                    self.network_graph.add_node(m.sender, addr=[addr])
+                    self.network_graph.add_edge(self.name, m.sender)
                 for nbr in m.neighbors:
-                    if nbr['name'] == self.name:
-                        if nbr.get('local_mpr'):
-                            self.network_graph.add_node(m.sender, addr=[addr], mprss=True)
+                    # IPS: Analyze HELLO for isolated flag
+                    if nbr['isolated']:
+                        if self.__get_side() == 'evil' and nbr['name'] == self.name:
+                            self.logger.error("They found me!")
                         else:
-                            self.network_graph.add_node(m.sender, addr=[addr], mprss=False)
-                    self.network_graph.add_edge(m.sender, nbr['name'])
+                            if nbr['name'] in self.network_graph.nodes():
+                                self.logger.warning(f"Remove isolated node {nbr['name']} from HELLO from f{m.sender}")
+                                self.ips.change_rating(nbr['name'], self.ips.rating_to_isolate)
+                                with self.glock:
+                                    self.network_graph.remove_node(nbr['name'])
+                    else:
+                        # Usual HELLO processing
+                        with self.glock:
+                            if nbr['name'] == self.name:
+                                if nbr.get('local_mpr'):
+                                    self.network_graph.add_node(m.sender, addr=[addr], mprss=True)
+                                else:
+                                    self.network_graph.add_node(m.sender, addr=[addr], mprss=False)
+                            self.network_graph.add_edge(m.sender, nbr['name'])
             elif m.message_type == 'TC':
                 if m.sender in self.get_neighbors(dist=None):
                     self.__parse_tc(m)
                 self.send_tc(forwarded_msg=m)
             elif m.message_type == 'CUSTOM':
-                if m.dest == self.name:
-                    self.logger.info(f'Got CUSTOM message from {m.sender}: {m.msg}; path: {m.forwarders}')
-                    try:
-                        self.visualize_route(m.forwarders)
-                    except Exception as e:
-                        self.logger.error(f'{e}\n{self.network_graph}')
-                else:
-                    if self.__is_mpr() and self.__is_on_route(m):
-                        if m.sender != self.name:
-                            if self.side == 'good':
-                                self.logger.info(f'I am MPR for {self.__get_by("mprss")}. My MPRS: {self.__get_by("mpr")}. I got msg from {m.sender} to {m.dest}. Its prev path: {m.forwarders}. Forwarding...')
-                                m.forwarders.append(self.name)
-                                self.net_worker.send_broadcast(m.pack())
-                            elif self.side == 'evil':
-                                self.logger.info(f'I got msg from {m.sender} to {m.dest}. Its prev path: {m.forwarders}. Dropping...')
+                self.recv_custom(m)
             self.__update_mprs()
             self.__update_mpr_set()
 
@@ -147,61 +160,59 @@ class Node:
 
     def __parse_tc(self, msg):
         # mark as MPR (somebody's MBR, nonlocal)
-        self.network_graph.add_node(msg.sender, mpr=True)
+        with self.glock:
+            self.network_graph.add_node(msg.sender, mpr=True)
         for nbr in msg.mpr_set:
-            # Node is in graph and has other MPR or didn't choose previously
-            if nbr['name'] in self.network_graph:
-                old_nbr_mpr = self.__get_data(nbr['name']).get('local_mpr')
-                # It had other MPR
-                if old_nbr_mpr and old_nbr_mpr != msg.sender:
-                    # Unset it as MPR in our ghraph
-                    if old_nbr_mpr in self.network_graph:
-                        self.network_graph.nodes()[old_nbr_mpr]['mpr'] = False
-                self.network_graph.add_node(nbr['name'], local_mpr=msg.sender)
-            self.network_graph.add_edge(msg.sender, nbr['name'])
+            with self.glock:
+                # Node is in graph and has other MPR or didn't choose previously
+                if nbr['name'] in self.network_graph:
+                    old_nbr_mpr = self.__get_data(nbr['name']).get('local_mpr')
+                    # It had other MPR
+                    if old_nbr_mpr and old_nbr_mpr != msg.sender:
+                        # Unset it as MPR in our ghraph
+                        if old_nbr_mpr in self.network_graph:
+                            self.network_graph.nodes()[old_nbr_mpr]['mpr'] = False
+                    self.network_graph.add_node(nbr['name'], local_mpr=msg.sender)
+                self.network_graph.add_edge(msg.sender, nbr['name'])
 
-    def visualize_network(self, with_mpr=False, image_postfix=None):
-        plt.clf()
-        plt.plot()
-        plt.axis('off')
-        with self.lock:
-            if with_mpr:
-                color_map = []
-                for node in self.network_graph:
-                    if node in self.__get_by('local_mpr'):
-                        color_map.append('red')
-                    elif node in self.__get_by('mpr'):
-                        color_map.append('green')
-                    else:
-                        color_map.append('blue')
-                self.visualize_method(self.network_graph, node_color=color_map, with_labels=True)
+    def visualize_network(self, image_postfix=None):
+        with self.rlock:
+            plt.clf()
+            plt.plot()
+            plt.axis('off')
+            color_map = []
+            for node in self.network_graph:
+                if node in self.__get_by('local_mpr'):
+                    color_map.append('red')
+                elif node in self.__get_by('mpr'):
+                    color_map.append('green')
+                elif node in [x['name'] for x in self.mpr_set]:
+                    color_map.append('yellow')
+                else:
+                    color_map.append('blue')
+            self.visualize_method(self.network_graph, node_color=color_map, with_labels=True)
+            if isinstance(image_postfix, int):
+                image_name = f'artifacts/{self.name}-{image_postfix}.png'
             else:
-                self.visualize_method(self.network_graph, with_labels=True)
-        if isinstance(image_postfix, int):
-            image_name = f'artifacts/{self.name}-{image_postfix}.png'
-        else:
-            image_name = f'artifacts/{self.name}.png'
-        plt.savefig(image_name)
+                image_name = f'artifacts/{self.name}.png'
+            plt.savefig(image_name)
 
-    def visualize_route(self, route):
-        def_col = 'b'
-        copy_graph = copy(self.network_graph)
-        plt.clf()
-        plt.plot()
-        plt.axis('off')
-        start_node = route[0]
-        for hop in route[1:]:
-            copy_graph.edges[start_node, hop]['color'] = 'r'
-            start_node = hop
-        edges_color = []
-        for x in copy_graph.edges().data():
-            if(col := x[2].get('color')):
-                edges_color.append(col)
-            else:
-                edges_color.append(def_col)
-        self.logger.info("Update image")
-        self.visualize_method(self.network_graph, with_labels=True, edge_color=edges_color)
-        plt.savefig(f'artifacts/{self.name}-route.png')
+    def __visualize_route(self, route):
+        route_edges = [(route[i], route[i+1]) for i in range(len(route)-1)]
+        route_edges += [(route[i+1], route[i]) for i in range(len(route)-1)]
+        edge_color = []
+        with self.rlock:
+            for e in self.network_graph.edges():
+                if e in route_edges:
+                    edge_color.append('r')
+                else:
+                    edge_color.append('b')
+            self.logger.info("Update image")
+            plt.clf()
+            plt.plot()
+            plt.axis('off')
+            self.visualize_method(self.network_graph, with_labels=True, edge_color=edge_color)
+            plt.savefig(f'artifacts/{route[0]}->{route[-1]}.png')
 
     def __get_data(self, node):
         return self.network_graph.nodes().data()[node]
@@ -219,39 +230,35 @@ class Node:
 
     def __update_mprs(self):
         any_in = lambda a, b: any(i in b for i in a)
-
         nodes_1 = self.get_neighbors()
         nodes_2 = self.get_neighbors(dist=2)
-
         mpr_set = []
-
-        # clean existing mpr set
-        for node in self.network_graph:
-            if self.__get_data(node).get('local_mpr'):
-                self.network_graph.add_node(node, local_mpr=False)
-
+        with self.glock:
+            for node in self.network_graph:
+                if self.__get_data(node).get('local_mpr'):
+                    self.network_graph.add_node(node, local_mpr=False)
         while nodes_2:
             node_1_dict = {}
             for n in nodes_1:
-                # all two my 2-neighbors
                 node_1_dict[n] = [x for x in list(self.network_graph.neighbors(n))
                                   if x in nodes_2 and x != self.name]
-
             node_1_dict = {x: node_1_dict[x] for x in sorted(
                                                             node_1_dict,
                                                             key=lambda k: len(node_1_dict[k]),
                                                             reverse=True)}
-            mpr = next(iter(node_1_dict)) # first in sorted dict
+            mpr = next(iter(node_1_dict))
             mpr_set.append(mpr)
-
             nodes_2 = [x for x in nodes_2 if x not in node_1_dict[mpr]]
-
             upd_nodes_1_dict = [x for x in nodes_1 if x not in mpr_set]
             nodes_1 = [x for x in upd_nodes_1_dict if any_in(nodes_2, node_1_dict[x])]
 
-        for node in self.network_graph:
-            if node in mpr_set:
-                self.network_graph.add_node(node, local_mpr=True)
+        with self.glock:
+            for node in self.network_graph:
+                if node in mpr_set:
+                    self.network_graph.add_node(node, local_mpr=True)
+
+    def __get_mprs(self):
+        return self.__get_by('local_mpr')
 
     def __get_route(self, dest_node, src_node=None):
         if not src_node:
@@ -261,18 +268,20 @@ class Node:
         return nx.shortest_path(self.network_graph, src_node, dest_node)
 
     def send_hello(self):
-        with self.lock:
+        with self.rlock:
             nbrs = [
                 {'name': nbr,
                 'addr': self.__get_data(nbr)['addr'],
                 'local_mpr': True if self.__get_data(nbr).get('local_mpr') else False,
-                'mprss': self.__get_data(nbr).get('mprss',False)} for nbr in list(self.network_graph.neighbors(self.name))]
+                'mprss': self.__get_data(nbr).get('mprss',False),
+                # IPS: inject isolation information to HELLO announcement
+                'isolated': self.__get_data(nbr).get('isolated',False)} for nbr in list(self.network_graph.neighbors(self.name))]
             msg =  message.Message.from_type(
                         'HELLO', sender=self.name, neighbor_table=nbrs)
             self.net_worker.send_broadcast(msg.pack())
 
     def send_tc(self, forwarded_msg=None):
-        with self.lock:
+        with self.rlock:
             if forwarded_msg:
                 tc_message = forwarded_msg
             else:
@@ -281,24 +290,103 @@ class Node:
             if self.__is_mpr():
                 self.net_worker.send_broadcast(tc_message.pack())
 
-    def send_message(self, msg, dest_node):
-        with self.lock:
+    def send_custom(self, msg, dest_node):
+        if dest_node == self.name:
+            return
+        with self.rlock:
             path = self.__get_route(dest_node)
             self.logger.info(f'Sending "{msg}" to {dest_node}. Expected path: {path}')
-            self.net_worker.send_broadcast(
-                message.Message.from_type(
-                    'CUSTOM', sender=self.name, dest=dest_node, msg=msg).pack())
+            msg = message.Message.from_type(
+                    'CUSTOM', sender=self.name, dest=dest_node, msg=msg)
+            self.net_worker.send_broadcast(msg.pack())
+            # IPS: register sent custom messages what has to be forwarded
+            if dest_node not in list(self.network_graph.neighbors(self.name)):
+                self.__sent_msgs.append(msg)
 
-# def test_patth(node, visualize=False):
-#     dist = 5
-#     second_node = None
-#     while not second_node:
-#         second_node = choice(node.get_neighbors(dist=dist))
-#         dist = dist-1
-#     route = node.__get_route(second_node)
-#     node.logger.info(f'Shortest path to {second_node}: {route}')
-#     if visualize:
-#         node.visualize_route(route)
+    def recv_custom(self, m):
+        if m.dest == self.name:
+            self.logger.info(f'Got CUSTOM message from {m.sender}: {m.msg}; path: {m.forwarders}')
+            self.__visualize_route(m.forwarders)
+        elif m.sender == self.name:
+            self.logger.warning("IPS: received from MPR self custom messages means this MPR is OK")
+            msg_translator = m.forwarders[-1]
+            is_from_my_mpr = msg_translator in self.__get_mprs()
+            if is_from_my_mpr:
+                self.logger.warning("IPS: Remove this message from sent list, increase MPR rating")
+                with self.rlock:
+                    del_msg = None
+                    for sent_msg in self.__sent_msgs[:]:
+                        if sent_msg == m:
+                            del_msg = sent_msg
+                    self.__sent_msgs.remove(del_msg)
+                    self.ips.change_rating(msg_translator, +1)
+            else:
+                self.logger.warning("IPS: This means someone else casting this message but should not - let's decrease its rating")
+                self.ips.change_rating(msg_translator, -1)
+        else:
+            if self.__is_mpr() and self.__is_on_route(m):
+                if m.sender != self.name:
+                    if self.__get_side() == 'good':
+                        self.logger.info(f'Got msg from {m.sender} -> {m.dest}, it passed: {m.forwarders}. Forwarding...')
+                        m.forwarders.append(self.name)
+                        self.net_worker.send_broadcast(m.pack())
+                    elif self.__get_side() == 'evil':
+                        self.logger.info(f'Got msg {m.sender}->{m.dest}, it passed: {m.forwarders}. Dropping...')
+
+    def ips_update(self):
+        # IPS: Method to validate other nodes behaviour, each call equal to clock passed
+        with self.rlock:
+            # Increase clock for messages
+            for msg in self.__sent_msgs:
+                age = msg.tick()
+                # Decrease rating for next hop node if it didn't forwarded for 2 clocks
+                if age >= 2:
+                    path = self.__get_route(msg.dest)
+                    self.__sent_msgs.remove(msg)
+                    self.logger.warning(f"IPS: Decrease rating for {path[1]}, message for {msg.dest} wasn't forwarded")
+                    self.ips.change_rating(path[1], -2)
+            with self.glock:
+                for node in self.ips.get_isolated():
+                    self.network_graph.add_node(node, isolated=True)
+                    self.send_hello()
+                    self.network_graph.remove_node(node)
+
+
+class IPS:
+
+    def __init__(self):
+        # IPS: nodes ratings
+        self.__node_ratings = defaultdict(int)
+        # IPS: List of isolated nodes
+        self.__isolated_nodes = []
+        # Limit node rating
+        self.__max_node_rating = 15
+        # Rating to isolate node
+        self.rating_to_isolate = -2
+        self.logger = create_logger('IPS')
+
+    # IPS: drop rating only for non-isolated nodes, inc only if it allowed
+    def change_rating(self, node, diff=-1):
+        if node not in self.__isolated_nodes and self.__node_ratings[node] <= self.__max_node_rating:
+            self.__node_ratings[node] += diff
+        rating = self.__node_ratings[node]
+        # Some node rating threshold
+        if rating <= self.rating_to_isolate:
+            self.logger.warning(f"Isolating {node} because of low rating")
+            self.__isolated_nodes.append(node)
+        # Some nodes can be de justified
+        if rating > 0 and node in self.__isolated_nodes:
+            self.logger.warning(f"Justify {node} as it behaves better")
+            self.__isolated_nodes.remove(node)
+
+    # IPS: Ignore all messages from isolated nodes
+    def is_isolated(self, node):
+        return node in self.__isolated_nodes
+
+    # IPS: Get isolated nodes to remove
+    def get_isolated(self):
+        return self.__isolated_nodes[:]
+
 
 class NodeWorker:
     """
@@ -321,7 +409,10 @@ class NodeWorker:
         cls.add_thread(cls.cast_hello, node)
         cls.add_thread(cls.listen, node)
         cls.add_thread(cls.cast_tc, node)
+        cls.add_thread(cls.ips, node)
 
+        if node.name == 'gw18':
+            time.sleep(10)
         [t.start() for t in cls.THREADS]
         while True:
             time.sleep(cls.SLEEPS['main'])
@@ -335,23 +426,28 @@ class NodeWorker:
         node.logger.info("Vizualization started")
         while(True):
             time.sleep(cls.SLEEPS['visualize'])
-            node.visualize_network(with_mpr=True)
+            node.visualize_network()
         node.logger.info("Vizualization end")
 
     @classmethod
     def workload(cls, node):
         node.logger.info("Workload started")
         while True:
+            time.sleep(cls.SLEEPS['workload'])
             if node.name == 'nw7-n1':
-                if 'nw5-n1' in node.get_neighbors(dist=None):
-                    node.send_message(f'Hello, X-hop friend!', 'nw5-n1')
-                    break
-                else:
-                    node.logger.info("Node nw5-n1' not known")
+                target_node = choice(node.get_neighbors(dist=None))
+                node.send_custom(f'Hello, X-hop friend!', target_node)
             else:
                 break
-            time.sleep(cls.SLEEPS['workload'])
         node.logger.info("Workload end")
+
+    @classmethod
+    def ips(cls, node):
+        node.logger.info("IPS started")
+        while True:
+            node.ips_update()
+            time.sleep(cls.SLEEPS['workload'])
+        node.logger.info("IPS end")
 
     @classmethod
     def cast_hello(cls, node):
